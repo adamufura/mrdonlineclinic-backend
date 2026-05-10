@@ -1,0 +1,109 @@
+import type { Types } from 'mongoose';
+import { ForbiddenError, NotFoundError } from '../../shared/errors';
+import { buildMeta, skipForPage } from '../../shared/pagination';
+import { uploadBuffer } from '../../services/imagekit.service';
+import { AppointmentModel } from '../appointments/appointment.model';
+import { PatientModel } from '../users/user.model';
+import { PrescriptionModel } from '../prescriptions/prescription.model';
+
+export async function getMyProfile(userId: Types.ObjectId) {
+  const patient = await PatientModel.findById(userId).lean();
+  if (!patient) throw new NotFoundError('Patient not found');
+  return patient;
+}
+
+export async function updateMyProfile(userId: Types.ObjectId, body: Record<string, unknown>) {
+  const patient = await PatientModel.findById(userId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  Object.assign(patient, body);
+  if (patient.dateOfBirth && patient.address?.city) {
+    patient.profileCompletedAt = patient.profileCompletedAt ?? new Date();
+  }
+  await patient.save();
+  return patient.toObject();
+}
+
+export async function updateMyMedical(userId: Types.ObjectId, body: Record<string, unknown>) {
+  const patient = await PatientModel.findById(userId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  if (body.allergies !== undefined) patient.set('allergies', body.allergies);
+  if (body.chronicConditions !== undefined) patient.set('chronicConditions', body.chronicConditions);
+  if (body.currentMedications !== undefined) patient.set('currentMedications', body.currentMedications);
+  if (body.emergencyContact !== undefined) patient.set('emergencyContact', body.emergencyContact);
+  if (body.address !== undefined) patient.set('address', body.address);
+  await patient.save();
+  return patient.toObject();
+}
+
+export async function uploadMyPhoto(userId: Types.ObjectId, file: Express.Multer.File) {
+  const patient = await PatientModel.findById(userId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  const uploaded = await uploadBuffer({
+    buffer: file.buffer,
+    fileName: file.originalname || 'profile.jpg',
+    folder: '/patients/profile',
+  });
+  patient.profilePhotoUrl = uploaded.url;
+  await patient.save();
+  return { profilePhotoUrl: uploaded.url };
+}
+
+export async function listMyAppointments(
+  userId: Types.ObjectId,
+  page: number,
+  limit: number,
+  filters: { status?: string; from?: Date; to?: Date },
+) {
+  const q: Record<string, unknown> = { patient: userId };
+  if (filters.status) q.status = filters.status;
+  if (filters.from || filters.to) {
+    q.scheduledStart = {};
+    if (filters.from) (q.scheduledStart as Record<string, Date>).$gte = filters.from;
+    if (filters.to) (q.scheduledStart as Record<string, Date>).$lte = filters.to;
+  }
+  const total = await AppointmentModel.countDocuments(q);
+  const rows = await AppointmentModel.find(q)
+    .sort({ scheduledStart: -1 })
+    .skip(skipForPage(page, limit))
+    .limit(limit)
+    .populate('practitioner', 'firstName lastName email profilePhotoUrl')
+    .populate('slot')
+    .lean();
+  return { items: rows, meta: buildMeta(total, page, limit) };
+}
+
+export async function listMyPrescriptions(userId: Types.ObjectId, page: number, limit: number) {
+  const total = await PrescriptionModel.countDocuments({ patient: userId });
+  const rows = await PrescriptionModel.find({ patient: userId })
+    .sort({ issuedAt: -1 })
+    .skip(skipForPage(page, limit))
+    .limit(limit)
+    .populate('practitioner', 'firstName lastName')
+    .lean();
+  return { items: rows, meta: buildMeta(total, page, limit) };
+}
+
+export async function listAllPatientsAdmin(page: number, limit: number, search?: string) {
+  const q: Record<string, unknown> = { role: 'PATIENT' };
+  if (search) {
+    q.$or = [
+      { firstName: new RegExp(search, 'i') },
+      { lastName: new RegExp(search, 'i') },
+      { email: new RegExp(search, 'i') },
+    ];
+  }
+  const total = await PatientModel.countDocuments(q);
+  const rows = await PatientModel.find(q)
+    .sort({ createdAt: -1 })
+    .skip(skipForPage(page, limit))
+    .limit(limit)
+    .lean();
+  return { items: rows, meta: buildMeta(total, page, limit) };
+}
+
+export async function getPatientByIdAdmin(actorRole: string, patientId: string) {
+  if (actorRole !== 'ADMIN') throw new ForbiddenError();
+  const patient = await PatientModel.findById(patientId).lean();
+  if (!patient) throw new NotFoundError('Patient not found');
+  return patient;
+}

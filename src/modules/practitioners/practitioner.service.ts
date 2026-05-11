@@ -162,11 +162,32 @@ export async function getPublicSlots(practitionerId: string, from: Date, to: Dat
 export async function listConsultedPatients(userId: Types.ObjectId) {
   const patientIds = await AppointmentModel.distinct('patient', {
     practitioner: userId,
-    status: { $in: ['COMPLETED', 'CONFIRMED', 'IN_PROGRESS'] },
+    status: { $in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED'] },
   });
-  return PatientModel.find({ _id: { $in: patientIds } })
+  if (patientIds.length === 0) return [];
+
+  const patients = await PatientModel.find({ _id: { $in: patientIds } })
     .select('firstName lastName email phoneNumber')
     .lean();
+
+  const lastVisits = await AppointmentModel.aggregate<{ _id: Types.ObjectId; lastAt: Date }>([
+    { $match: { practitioner: userId, patient: { $in: patientIds } } },
+    { $group: { _id: '$patient', lastAt: { $max: '$scheduledStart' } } },
+  ]);
+  const lastMap = new Map(lastVisits.map((r) => [String(r._id), r.lastAt]));
+
+  const merged = patients.map((p) => ({
+    ...p,
+    lastAppointmentAt: lastMap.get(String(p._id)) ?? null,
+  }));
+
+  merged.sort((a, b) => {
+    const ta = a.lastAppointmentAt ? new Date(a.lastAppointmentAt).getTime() : 0;
+    const tb = b.lastAppointmentAt ? new Date(b.lastAppointmentAt).getTime() : 0;
+    return tb - ta;
+  });
+
+  return merged;
 }
 
 export async function listAllPractitionersAdmin(page: number, limit: number) {

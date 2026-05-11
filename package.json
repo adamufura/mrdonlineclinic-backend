@@ -10,6 +10,7 @@
     "dev": "tsx watch src/server.ts",
     "lint": "eslint src --ext .ts",
     "seed": "tsx src/scripts/run-seed.ts",
+    "seed:specialties": "tsx src/scripts/seed-specialties.ts",
     "smoke": "tsx src/scripts/smoke-test.ts",
     "test": "jest --runInBand",
     "test:watch": "jest --watch"

@@ -17,7 +17,13 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().default(15),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(7),
   CLIENT_URL: z.string().url().optional().default('http://localhost:3000'),
-  CORS_ORIGINS: z.string().optional().default('http://localhost:3000'),
+  /** Comma-separated browser origins (credentials). Default covers local web (:5173) + admin (:5174) + API port. Set explicitly in production. */
+  CORS_ORIGINS: z
+    .string()
+    .optional()
+    .default(
+      'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174,http://localhost:3000',
+    ),
   SEED_SUPERADMIN_EMAIL: z.string().email().optional(),
   SEED_SUPERADMIN_PASSWORD: z.string().min(8).optional(),
   SMTP_HOST: z.string().optional(),

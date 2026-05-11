@@ -6,14 +6,16 @@ import * as slotSvc from '../slots/slot.service';
 import * as svc from './practitioner.service';
 
 export async function listDirectory(req: Request, res: Response) {
-  const { page, limit, specialtyId, search, sort } = req.query as unknown as {
+  const { page, limit, specialtyId, search, location, date, sort } = req.query as unknown as {
     page: number;
     limit: number;
     specialtyId?: string;
     search?: string;
+    location?: string;
+    date?: string;
     sort?: 'rating' | 'experience' | 'createdAt';
   };
-  const result = await svc.listDirectory({ page, limit, specialtyId, search, sort });
+  const result = await svc.listDirectory({ page, limit, specialtyId, search, location, date, sort });
   return res.json(ok('Practitioners', result.items, result.meta));
 }
 

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/pagination';
 
+/** Express query values are often empty strings — treat as undefined. */
+function queryStringOptional<T extends z.ZodTypeAny>(inner: T) {
+  return z.preprocess((v) => {
+    if (v === undefined || v === null || v === '') return undefined;
+    return v;
+  }, inner.optional());
+}
+
 export const updatePractitionerProfileSchema = z
   .object({
     firstName: z.string().min(1).max(100).optional(),
@@ -20,6 +28,13 @@ export const updatePractitionerProfileSchema = z
       .optional(),
     specialties: z.array(z.string().regex(/^[a-fA-F0-9]{24}$/)).optional(),
     consultationLanguages: z.array(z.string()).optional(),
+    practiceLocation: z
+      .object({
+        city: z.string().max(120).optional(),
+        state: z.string().max(120).optional(),
+        country: z.string().max(120).optional(),
+      })
+      .optional(),
   })
   .superRefine((d, ctx) => {
     const touchesIdentity =
@@ -39,8 +54,11 @@ export const updatePractitionerProfileSchema = z
   });
 
 export const listPractitionersQuerySchema = paginationQuerySchema.extend({
-  specialtyId: z.string().regex(/^[a-fA-F0-9]{24}$/).optional(),
-  search: z.string().optional(),
+  specialtyId: queryStringOptional(z.string().regex(/^[a-fA-F0-9]{24}$/)),
+  search: queryStringOptional(z.string().max(200)),
+  location: queryStringOptional(z.string().max(120)),
+  /** YYYY-MM-DD — practitioners with at least one OPEN slot overlapping this calendar day (UTC). */
+  date: queryStringOptional(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   sort: z.enum(['rating', 'experience', 'createdAt']).optional(),
 });
 

@@ -92,6 +92,12 @@ const practitionerSchema = new Schema({
   totalReviews: { type: Number, default: 0 },
   isAvailableForBooking: { type: Boolean, default: false, index: true },
   profileCompletedAt: { type: Date },
+  /** Shown in public directory; used for location search (city/state/country). */
+  practiceLocation: {
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    country: { type: String, trim: true },
+  },
 });
 
 const adminSchema = new Schema({

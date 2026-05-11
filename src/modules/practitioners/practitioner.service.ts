@@ -1,12 +1,21 @@
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import type { Types } from 'mongoose';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { uploadBuffer } from '../../services/imagekit.service';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { ReviewModel } from '../reviews/review.model';
+import { SlotModel } from '../slots/slot.model';
 import { listPublicOpenSlots } from '../slots/slot.service';
 import { PatientModel, PractitionerModel } from '../users/user.model';
 import { auditLog } from '../audit/audit.service';
+
+dayjs.extend(utc);
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export async function getMe(userId: Types.ObjectId) {
   const p = await PractitionerModel.findById(userId).populate('specialties').lean();
@@ -26,6 +35,12 @@ export async function updateMyProfile(userId: Types.ObjectId, body: Record<strin
   if (body.qualifications !== undefined) p.set('qualifications', body.qualifications);
   if (body.specialties !== undefined) p.set('specialties', body.specialties);
   if (body.consultationLanguages !== undefined) p.set('consultationLanguages', body.consultationLanguages);
+  if (body.practiceLocation !== undefined) {
+    const next = body.practiceLocation as { city?: string; state?: string; country?: string };
+    const prev =
+      (p.get('practiceLocation') as { city?: string; state?: string; country?: string } | undefined) || {};
+    p.set('practiceLocation', { ...prev, ...next });
+  }
   await p.save();
   return p.toObject();
 }
@@ -62,20 +77,46 @@ export async function listDirectory(query: {
   limit: number;
   specialtyId?: string;
   search?: string;
+  location?: string;
+  date?: string;
   sort?: 'rating' | 'experience' | 'createdAt';
 }) {
-  const filter: Record<string, unknown> = {
+  const base: Record<string, unknown> = {
     role: 'PRACTITIONER',
     status: 'ACTIVE',
     verificationStatus: 'VERIFIED',
   };
-  if (query.specialtyId) filter.specialties = query.specialtyId;
-  if (query.search) {
-    filter.$or = [
-      { firstName: new RegExp(query.search, 'i') },
-      { lastName: new RegExp(query.search, 'i') },
-    ];
+  const and: Record<string, unknown>[] = [base];
+
+  if (query.specialtyId) {
+    and.push({ specialties: query.specialtyId });
   }
+  if (query.search?.trim()) {
+    const rx = new RegExp(escapeRegex(query.search.trim()), 'i');
+    and.push({ $or: [{ firstName: rx }, { lastName: rx }, { bio: rx }] });
+  }
+  if (query.location?.trim()) {
+    const rx = new RegExp(escapeRegex(query.location.trim()), 'i');
+    and.push({
+      $or: [
+        { 'practiceLocation.city': rx },
+        { 'practiceLocation.state': rx },
+        { 'practiceLocation.country': rx },
+      ],
+    });
+  }
+  if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
+    const start = dayjs.utc(query.date).startOf('day').toDate();
+    const end = dayjs.utc(query.date).endOf('day').toDate();
+    const practitionerIds = await SlotModel.distinct('practitioner', {
+      status: 'OPEN',
+      startTime: { $gte: start, $lte: end },
+    });
+    and.push({ _id: { $in: practitionerIds } });
+  }
+
+  const filter: Record<string, unknown> = and.length === 1 ? and[0]! : { $and: and };
+
   const sort: Record<string, 1 | -1> =
     query.sort === 'experience'
       ? { yearsOfExperience: -1 }
@@ -90,7 +131,7 @@ export async function listDirectory(query: {
     .limit(query.limit)
     .populate('specialties', 'name slug')
     .select(
-      'firstName lastName bio yearsOfExperience averageRating totalReviews profilePhotoUrl specialties consultationLanguages',
+      'firstName lastName bio yearsOfExperience averageRating totalReviews profilePhotoUrl specialties consultationLanguages practiceLocation',
     )
     .lean();
   return { items: rows, meta: buildMeta(total, query.page, query.limit) };

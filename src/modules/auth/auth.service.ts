@@ -91,30 +91,16 @@ export async function registerPatient(body: {
 
   const { password, ...profile } = body;
   const passwordHash = await hashPassword(password);
-  const rawVerify = randomUrlToken();
-  const emailVerificationToken = hashToken(rawVerify);
-  const emailVerificationExpires = dayjs().add(48, 'hour').toDate();
 
   await PatientModel.create({
     ...profile,
     email,
     passwordHash,
-    emailVerificationToken,
-    emailVerificationExpires,
-    status: 'PENDING_VERIFICATION',
-    isEmailVerified: false,
+    status: 'ACTIVE',
+    isEmailVerified: true,
   });
 
-  const env = getEnv();
-  const link = `${env.CLIENT_URL}/verify-email?token=${rawVerify}`;
-  await getEmailAdapter().sendMail({
-    to: email,
-    subject: 'Verify your email',
-    html: `<p>Verify your email: <a href="${link}">${link}</a></p>`,
-    text: `Verify your email: ${link}`,
-  });
-
-  return { message: 'Registration successful. Please verify your email.' };
+  return { message: 'Account created successfully. You can log in now.' };
 }
 
 type RegisterPractitionerBody = z.infer<typeof registerPractitionerSchema>;
@@ -135,33 +121,19 @@ export async function registerPractitioner(body: RegisterPractitionerBody) {
   }
 
   const passwordHash = await hashPassword(password);
-  const rawVerify = randomUrlToken();
-  const emailVerificationToken = hashToken(rawVerify);
-  const emailVerificationExpires = dayjs().add(48, 'hour').toDate();
 
   await PractitionerModel.create({
     ...profile,
     specialties: specialtyIds,
     email,
     passwordHash,
-    emailVerificationToken,
-    emailVerificationExpires,
-    status: 'PENDING_VERIFICATION',
-    isEmailVerified: false,
+    status: 'ACTIVE',
+    isEmailVerified: true,
     verificationStatus: 'UNVERIFIED',
     isAvailableForBooking: false,
   });
 
-  const env = getEnv();
-  const link = `${env.CLIENT_URL}/verify-email?token=${rawVerify}`;
-  await getEmailAdapter().sendMail({
-    to: email,
-    subject: 'Verify your email',
-    html: `<p>Verify your email: <a href="${link}">${link}</a></p>`,
-    text: `Verify your email: ${link}`,
-  });
-
-  return { message: 'Registration successful. Please verify your email.' };
+  return { message: 'Account created successfully. You can log in now.' };
 }
 
 export async function loginPatientPractitioner(body: { email: string; password: string }, req: Request) {

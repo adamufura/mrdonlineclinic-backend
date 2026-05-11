@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/pagination';
 
+export const listRoomsQuerySchema = paginationQuerySchema;
+
 export const roomIdParamSchema = z.object({
   roomId: z.string().regex(/^[a-fA-F0-9]{24}$/),
 });

@@ -5,6 +5,7 @@ import { validateBody, validateParams, validateQuery } from '../../middlewares/v
 import * as ctrl from './chat.controller';
 import {
   listMessagesQuerySchema,
+  listRoomsQuerySchema,
   messageIdParamSchema,
   postMessageHttpSchema,
   roomIdParamSchema,
@@ -13,6 +14,9 @@ import {
 const router = Router();
 router.use(authenticate);
 
+router.get('/rooms', validateQuery(listRoomsQuerySchema), asyncHandler(ctrl.listRooms));
+router.get('/rooms/:roomId', validateParams(roomIdParamSchema), asyncHandler(ctrl.getRoom));
+router.post('/rooms/:roomId/read-all', validateParams(roomIdParamSchema), asyncHandler(ctrl.markRoomReadAll));
 router.get('/rooms/:roomId/messages', validateParams(roomIdParamSchema), validateQuery(listMessagesQuerySchema), asyncHandler(ctrl.listMessages));
 router.post(
   '/rooms/:roomId/messages',

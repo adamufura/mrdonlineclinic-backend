@@ -1,8 +1,154 @@
 import type { Types } from 'mongoose';
+import mongoose from 'mongoose';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { ChatRoomModel } from './chat-room.model';
 import { MessageModel } from './message.model';
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function idOfPopulated(ref: unknown): string | null {
+  if (ref == null) return null;
+  if (typeof ref === 'string') return ref;
+  if (ref instanceof mongoose.Types.ObjectId) return String(ref);
+  if (isRecord(ref) && ref._id != null) return String(ref._id);
+  return null;
+}
+
+function pickOtherParticipant(
+  appointment: Record<string, unknown> | null | undefined,
+  userId: Types.ObjectId,
+): Record<string, unknown> | null {
+  if (!appointment) return null;
+  const patient = appointment.patient;
+  const practitioner = appointment.practitioner;
+  const pid = idOfPopulated(patient);
+  const prid = idOfPopulated(practitioner);
+  const me = String(userId);
+  if (pid === me && isRecord(practitioner)) return practitioner as Record<string, unknown>;
+  if (prid === me && isRecord(patient)) return patient as Record<string, unknown>;
+  if (isRecord(practitioner) && prid !== me) return practitioner as Record<string, unknown>;
+  if (isRecord(patient) && pid !== me) return patient as Record<string, unknown>;
+  return null;
+}
+
+function normalizeUser(u: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!u) return null;
+  return {
+    _id: u._id,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    role: u.role,
+    profilePhotoUrl: u.profilePhotoUrl,
+  };
+}
+
+export type ChatRoomSummary = {
+  _id: string;
+  appointment: Record<string, unknown> | null;
+  isLocked: boolean;
+  lastMessageAt: Date | null;
+  otherParticipant: Record<string, unknown> | null;
+  lastMessage: Record<string, unknown> | null;
+  unreadCount: number;
+};
+
+async function buildRoomSummaries(
+  rooms: Record<string, unknown>[],
+  userId: Types.ObjectId,
+): Promise<ChatRoomSummary[]> {
+  if (rooms.length === 0) return [];
+  const roomIds = rooms.map((r) => r._id as Types.ObjectId);
+
+  const lastAgg = await MessageModel.aggregate([
+    { $match: { chatRoom: { $in: roomIds } } },
+    { $sort: { createdAt: -1 } },
+    { $group: { _id: '$chatRoom', doc: { $first: '$$ROOT' } } },
+    {
+      $lookup: {
+        from: 'users',
+        let: { sid: '$doc.sender' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$sid'] } } },
+          { $project: { firstName: 1, lastName: 1, role: 1, profilePhotoUrl: 1 } },
+        ],
+        as: 'senderDoc',
+      },
+    },
+    {
+      $addFields: {
+        'doc.sender': { $arrayElemAt: ['$senderDoc', 0] },
+      },
+    },
+    { $project: { senderDoc: 0 } },
+  ]);
+
+  const unreadAgg = await MessageModel.aggregate([
+    {
+      $match: {
+        chatRoom: { $in: roomIds },
+        sender: { $ne: userId },
+      },
+    },
+    {
+      $addFields: {
+        readIds: {
+          $map: {
+            input: { $ifNull: ['$readBy', []] },
+            as: 'rb',
+            in: '$$rb.user',
+          },
+        },
+      },
+    },
+    {
+      $match: {
+        $expr: { $not: { $in: [userId, '$readIds'] } },
+      },
+    },
+    { $group: { _id: '$chatRoom', c: { $sum: 1 } } },
+  ]);
+
+  const lastByRoom = new Map<string, Record<string, unknown>>();
+  for (const row of lastAgg) {
+    const rid = String(row._id);
+    const doc = row.doc as Record<string, unknown> | undefined;
+    if (doc) lastByRoom.set(rid, doc);
+  }
+
+  const unreadByRoom = new Map<string, number>();
+  for (const row of unreadAgg) {
+    unreadByRoom.set(String(row._id), row.c as number);
+  }
+
+  return rooms.map((room) => {
+    const rid = String(room._id);
+    const appt = isRecord(room.appointment) ? (room.appointment as Record<string, unknown>) : null;
+    const other = normalizeUser(pickOtherParticipant(appt, userId));
+    const lastRaw = lastByRoom.get(rid) ?? null;
+    const lastMessage = lastRaw
+      ? ({
+          _id: lastRaw._id,
+          content: lastRaw.content,
+          messageType: lastRaw.messageType,
+          createdAt: lastRaw.createdAt,
+          sender: isRecord(lastRaw.sender) ? normalizeUser(lastRaw.sender as Record<string, unknown>) : lastRaw.sender,
+        } as Record<string, unknown>)
+      : null;
+
+    return {
+      _id: rid,
+      appointment: appt,
+      isLocked: Boolean(room.isLocked),
+      lastMessageAt: (room.lastMessageAt as Date | undefined) ?? null,
+      otherParticipant: other,
+      lastMessage,
+      unreadCount: unreadByRoom.get(rid) ?? 0,
+    };
+  });
+}
 
 async function assertParticipant(roomId: string, userId: Types.ObjectId) {
   const room = await ChatRoomModel.findById(roomId);
@@ -57,7 +203,62 @@ export async function createHttpMessage(
     messageType: body.messageType ?? 'TEXT',
   });
   await ChatRoomModel.updateOne({ _id: roomId }, { lastMessageAt: new Date() });
-  return msg.toObject();
+  const populated = await MessageModel.findById(msg._id)
+    .populate({ path: 'sender', select: 'firstName lastName role profilePhotoUrl' })
+    .lean();
+  if (!populated) throw new NotFoundError('Message not found');
+  return populated as Record<string, unknown>;
+}
+
+export async function listRoomsForUser(userId: Types.ObjectId, page: number, limit: number) {
+  const match = { participants: userId };
+  const total = await ChatRoomModel.countDocuments(match);
+  const rows = await ChatRoomModel.find(match)
+    .sort({ lastMessageAt: -1, updatedAt: -1 })
+    .skip(skipForPage(page, limit))
+    .limit(limit)
+    .populate({
+      path: 'appointment',
+      select: 'scheduledStart status reasonForVisit patient practitioner chatRoom',
+      populate: [
+        { path: 'patient', select: 'firstName lastName role profilePhotoUrl' },
+        { path: 'practitioner', select: 'firstName lastName role profilePhotoUrl' },
+      ],
+    })
+    .lean();
+  const items = await buildRoomSummaries(rows as Record<string, unknown>[], userId);
+  return { items, meta: buildMeta(total, page, limit) };
+}
+
+export async function getRoomForUser(roomId: string, userId: Types.ObjectId): Promise<ChatRoomSummary> {
+  await assertParticipant(roomId, userId);
+  const row = await ChatRoomModel.findById(roomId)
+    .populate({
+      path: 'appointment',
+      select: 'scheduledStart status reasonForVisit patient practitioner chatRoom',
+      populate: [
+        { path: 'patient', select: 'firstName lastName role profilePhotoUrl' },
+        { path: 'practitioner', select: 'firstName lastName role profilePhotoUrl' },
+      ],
+    })
+    .lean();
+  if (!row) throw new NotFoundError('Chat room not found');
+  const [summary] = await buildRoomSummaries([row as Record<string, unknown>], userId);
+  return summary;
+}
+
+export async function markRoomReadAll(roomId: string, userId: Types.ObjectId) {
+  await assertParticipant(roomId, userId);
+  const now = new Date();
+  const res = await MessageModel.updateMany(
+    {
+      chatRoom: roomId,
+      sender: { $ne: userId },
+      readBy: { $not: { $elemMatch: { user: userId } } },
+    },
+    { $push: { readBy: { user: userId, readAt: now } } },
+  );
+  return { marked: res.modifiedCount ?? 0 };
 }
 
 export async function createSocketMessage(roomId: string, userId: Types.ObjectId, content: string, messageType: string) {

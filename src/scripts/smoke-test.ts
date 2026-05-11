@@ -310,6 +310,19 @@ async function main() {
     roomId = typeof cr === 'string' ? cr : cr.toString();
   }
 
+  step('list chat rooms (patient)');
+  {
+    const res = await request(app)
+      .get(api('/chat/rooms'))
+      .set('Authorization', `Bearer ${patientAccess}`)
+      .query({ page: 1, limit: 20 })
+      .expect(200);
+    const body = res.body as Envelope<unknown[]>;
+    assert(body.success && Array.isArray(body.data), body.message);
+    const items = body.data as { _id: string }[];
+    assert(items.some((r) => String(r._id) === roomId), 'room list should include appointment chat');
+  }
+
   step('chat messages (before complete locks room)');
   {
     const r1 = await request(app)

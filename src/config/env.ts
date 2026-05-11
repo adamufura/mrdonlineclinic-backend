@@ -52,7 +52,38 @@ export function getEnv(): Env {
   return cached;
 }
 
+/**
+ * Local Vite + tooling origins — unioned with `CORS_ORIGINS` unless `CORS_STRICT=true`.
+ * The origin of `CLIENT_URL` is always included so production can set one public web URL
+ * (`CLIENT_URL=https://your-spa.example`) without duplicating it in `CORS_ORIGINS`.
+ * If users can open the same site over HTTP and HTTPS, list both origins in `CORS_ORIGINS`
+ * (scheme matters for the browser `Origin` header).
+ */
+const LOCAL_BROWSER_DEV_ORIGINS = [
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5174',
+  'http://localhost:5174',
+  'http://localhost:3000',
+] as const;
+
+function clientUrlOrigin(): string | undefined {
+  try {
+    return new URL(getEnv().CLIENT_URL).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseCorsOrigins(): string[] {
   const raw = getEnv().CORS_ORIGINS;
-  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const fromEnv = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const clientOrigin = clientUrlOrigin();
+  const fromClient = clientOrigin ? [clientOrigin] : [];
+  const strict = process.env.CORS_STRICT === '1' || process.env.CORS_STRICT === 'true';
+  if (strict) {
+    const base = fromEnv.length > 0 ? fromEnv : [...LOCAL_BROWSER_DEV_ORIGINS];
+    return [...new Set([...base, ...fromClient])];
+  }
+  return [...new Set([...fromEnv, ...LOCAL_BROWSER_DEV_ORIGINS, ...fromClient])];
 }

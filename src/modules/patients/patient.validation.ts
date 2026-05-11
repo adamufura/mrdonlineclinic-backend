@@ -1,17 +1,34 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/pagination';
 
-export const updatePatientProfileSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  middleName: z.string().max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
-  phoneNumber: z.string().min(5).max(30).optional(),
-  dateOfBirth: z.coerce.date().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_SAY']).optional(),
-  bloodGroup: z
-    .enum(['A_POS', 'A_NEG', 'B_POS', 'B_NEG', 'AB_POS', 'AB_NEG', 'O_POS', 'O_NEG', 'UNKNOWN'])
-    .optional(),
-});
+export const updatePatientProfileSchema = z
+  .object({
+    firstName: z.string().min(1).max(100).optional(),
+    middleName: z.string().max(100).optional(),
+    lastName: z.string().min(1).max(100).optional(),
+    phoneNumber: z.string().min(5).max(30).optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_SAY']).optional(),
+    bloodGroup: z
+      .enum(['A_POS', 'A_NEG', 'B_POS', 'B_NEG', 'AB_POS', 'AB_NEG', 'O_POS', 'O_NEG', 'UNKNOWN'])
+      .optional(),
+  })
+  .superRefine((d, ctx) => {
+    const touchesIdentity =
+      d.firstName !== undefined ||
+      d.lastName !== undefined ||
+      d.phoneNumber !== undefined ||
+      d.middleName !== undefined;
+    if (!touchesIdentity) return;
+    const m = d.middleName != null ? String(d.middleName).trim() : '';
+    if (m.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Middle name is required when updating your name or phone',
+        path: ['middleName'],
+      });
+    }
+  });
 
 export const updatePatientMedicalSchema = z.object({
   allergies: z.array(z.string()).optional(),

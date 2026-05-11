@@ -1,21 +1,42 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/pagination';
 
-export const updatePractitionerProfileSchema = z.object({
-  bio: z.string().max(5000).optional(),
-  yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
-  qualifications: z
-    .array(
-      z.object({
-        degree: z.string(),
-        institution: z.string(),
-        year: z.coerce.number(),
-      }),
-    )
-    .optional(),
-  specialties: z.array(z.string().regex(/^[a-fA-F0-9]{24}$/)).optional(),
-  consultationLanguages: z.array(z.string()).optional(),
-});
+export const updatePractitionerProfileSchema = z
+  .object({
+    firstName: z.string().min(1).max(100).optional(),
+    middleName: z.string().max(100).optional(),
+    lastName: z.string().min(1).max(100).optional(),
+    phoneNumber: z.string().min(5).max(30).optional(),
+    bio: z.string().max(5000).optional(),
+    yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
+    qualifications: z
+      .array(
+        z.object({
+          degree: z.string(),
+          institution: z.string(),
+          year: z.coerce.number(),
+        }),
+      )
+      .optional(),
+    specialties: z.array(z.string().regex(/^[a-fA-F0-9]{24}$/)).optional(),
+    consultationLanguages: z.array(z.string()).optional(),
+  })
+  .superRefine((d, ctx) => {
+    const touchesIdentity =
+      d.firstName !== undefined ||
+      d.lastName !== undefined ||
+      d.phoneNumber !== undefined ||
+      d.middleName !== undefined;
+    if (!touchesIdentity) return;
+    const m = d.middleName != null ? String(d.middleName).trim() : '';
+    if (m.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Middle name is required when updating your name or phone',
+        path: ['middleName'],
+      });
+    }
+  });
 
 export const listPractitionersQuerySchema = paginationQuerySchema.extend({
   specialtyId: z.string().regex(/^[a-fA-F0-9]{24}$/).optional(),

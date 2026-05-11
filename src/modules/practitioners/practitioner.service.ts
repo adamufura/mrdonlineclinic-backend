@@ -17,6 +17,10 @@ export async function getMe(userId: Types.ObjectId) {
 export async function updateMyProfile(userId: Types.ObjectId, body: Record<string, unknown>) {
   const p = await PractitionerModel.findById(userId);
   if (!p) throw new NotFoundError('Practitioner not found');
+  if (body.firstName !== undefined) p.firstName = body.firstName as string;
+  if (body.middleName !== undefined) p.middleName = body.middleName as string;
+  if (body.lastName !== undefined) p.lastName = body.lastName as string;
+  if (body.phoneNumber !== undefined) p.phoneNumber = body.phoneNumber as string;
   if (body.bio !== undefined) p.bio = body.bio as string;
   if (body.yearsOfExperience !== undefined) p.yearsOfExperience = body.yearsOfExperience as number;
   if (body.qualifications !== undefined) p.set('qualifications', body.qualifications);

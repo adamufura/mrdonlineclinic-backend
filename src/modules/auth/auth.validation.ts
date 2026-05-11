@@ -11,7 +11,6 @@ const strongPassword = z
 
 export const registerPatientSchema = z.object({
   firstName: z.string().min(1).max(100),
-  middleName: z.string().max(100).optional(),
   lastName: z.string().min(1).max(100),
   email: z.string().email().max(255),
   phoneNumber: z.string().min(5).max(30),
@@ -22,15 +21,9 @@ const mongoObjectIdString = z
   .string()
   .regex(/^[a-fA-F0-9]{24}$/, 'Invalid specialty id');
 
-/** Call GET /api/v1/specialties for options; send each specialty's `id`. */
+/** Call GET /api/v1/specialties for options; send exactly one specialty `id` in the array. */
 export const registerPractitionerSchema = registerPatientSchema.extend({
-  specialties: z
-    .array(mongoObjectIdString)
-    .min(1, 'Select at least one specialty')
-    .max(20, 'Too many specialties')
-    .refine((ids) => new Set(ids).size === ids.length, {
-      message: 'Duplicate specialty ids are not allowed',
-    }),
+  specialties: z.array(mongoObjectIdString).length(1, 'Select exactly one specialty'),
 });
 
 export const loginSchema = z.object({

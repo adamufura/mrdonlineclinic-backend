@@ -80,7 +80,6 @@ async function issueTokens(userId: Types.ObjectId, role: AuthRole, adminRole: Ad
 
 export async function registerPatient(body: {
   firstName: string;
-  middleName?: string;
   lastName: string;
   email: string;
   phoneNumber: string;

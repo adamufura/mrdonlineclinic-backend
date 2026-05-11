@@ -34,24 +34,28 @@ describe('auth.validation', () => {
     password: 'Aa1!aaaa',
   };
 
-  it('registerPractitioner requires at least one specialty id', () => {
-    const parsed = registerPractitionerSchema.safeParse({
-      ...validPractitionerBase,
-      specialties: [],
-    });
-    expect(parsed.success).toBe(false);
+  it('registerPractitioner requires exactly one specialty id', () => {
+    expect(
+      registerPractitionerSchema.safeParse({
+        ...validPractitionerBase,
+        specialties: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      registerPractitionerSchema.safeParse({
+        ...validPractitionerBase,
+        specialties: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439011'],
+      }).success,
+    ).toBe(false);
+    expect(
+      registerPractitionerSchema.safeParse({
+        ...validPractitionerBase,
+        specialties: ['507f1f77bcf86cd799439011', '507f191e810c19729de860ea'],
+      }).success,
+    ).toBe(false);
   });
 
-  it('registerPractitioner rejects duplicate specialty ids', () => {
-    const id = '507f1f77bcf86cd799439011';
-    const parsed = registerPractitionerSchema.safeParse({
-      ...validPractitionerBase,
-      specialties: [id, id],
-    });
-    expect(parsed.success).toBe(false);
-  });
-
-  it('registerPractitioner accepts valid payload with specialties', () => {
+  it('registerPractitioner accepts valid payload with one specialty', () => {
     const parsed = registerPractitionerSchema.safeParse({
       ...validPractitionerBase,
       specialties: ['507f1f77bcf86cd799439011'],

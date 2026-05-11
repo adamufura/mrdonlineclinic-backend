@@ -204,7 +204,7 @@ async function main() {
     const res = await request(app)
       .patch(api('/patients/me'))
       .set('Authorization', `Bearer ${patientAccess}`)
-      .send({ firstName: 'Smoke', lastName: 'PatientUpdated' })
+      .send({ firstName: 'Smoke', middleName: 'M', lastName: 'PatientUpdated', phoneNumber: patientPhone })
       .expect(200);
     const body = res.body as Envelope;
     assert(body.success, body.message);
@@ -215,7 +215,14 @@ async function main() {
     const res = await request(app)
       .patch(api('/practitioners/me'))
       .set('Authorization', `Bearer ${practitionerAccess}`)
-      .send({ bio: 'Smoke test practitioner bio', yearsOfExperience: 5 })
+      .send({
+        firstName: 'Smoke',
+        middleName: 'M',
+        lastName: 'Doctor',
+        phoneNumber: practitionerPhone,
+        bio: 'Smoke test practitioner bio',
+        yearsOfExperience: 5,
+      })
       .expect(200);
     const body = res.body as Envelope;
     assert(body.success, body.message);

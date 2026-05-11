@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { clearRefreshTokenCookie, setRefreshTokenCookie, getRefreshTokenFromRequest } from '../../config/refreshCookie';
 import { AuthError } from '../../shared/errors';
 import { ok } from '../../shared/envelope';
 import * as authService from './auth.service';
@@ -15,6 +16,7 @@ export async function registerPractitioner(req: Request, res: Response) {
 
 export async function login(req: Request, res: Response) {
   const result = await authService.loginPatientPractitioner(req.body, req);
+  setRefreshTokenCookie(res, result.tokens.refreshToken);
   return res.json(ok('Login successful', result));
 }
 
@@ -24,13 +26,20 @@ export async function adminLogin(req: Request, res: Response) {
 }
 
 export async function refresh(req: Request, res: Response) {
-  const tokens = await authService.refreshTokens(req.body, req);
+  const refreshToken = req.body?.refreshToken ?? getRefreshTokenFromRequest(req);
+  if (!refreshToken) throw new AuthError('Missing refresh token');
+  const tokens = await authService.refreshTokens({ refreshToken }, req);
+  setRefreshTokenCookie(res, tokens.refreshToken);
   return res.json(ok('Token refreshed', { tokens }));
 }
 
 export async function logout(req: Request, res: Response) {
-  const result = await authService.logout(req.body);
-  return res.json(ok(result.message));
+  const refreshToken = req.body?.refreshToken ?? getRefreshTokenFromRequest(req);
+  if (refreshToken) {
+    await authService.logout({ refreshToken });
+  }
+  clearRefreshTokenCookie(res);
+  return res.json(ok('Logged out'));
 }
 
 export async function verifyEmail(req: Request, res: Response) {

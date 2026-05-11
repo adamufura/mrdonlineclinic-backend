@@ -39,7 +39,8 @@ export const loginSchema = z.object({
 });
 
 export const refreshSchema = z.object({
-  refreshToken: z.string().min(1),
+  /** Optional when refresh token is sent as httpOnly cookie (web SPA). */
+  refreshToken: z.string().min(1).optional(),
 });
 
 export const logoutSchema = refreshSchema;

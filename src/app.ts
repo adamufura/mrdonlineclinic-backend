@@ -5,10 +5,9 @@ import express from 'express';
 import mongoSanitize from 'express-mongo-sanitize';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
-import pinoHttp from 'pino-http';
 import { parseCorsOrigins } from './config/env';
 import { API_PREFIX } from './config/constants';
-import { logger } from './config/logger';
+import { httpLoggerMiddleware } from './config/httpLogger';
 import { errorHandler } from './middlewares/errorHandler';
 import { registerRoutes } from './routes';
 import { ok } from './shared/envelope';
@@ -28,12 +27,7 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(mongoSanitize());
-  app.use(
-    pinoHttp({
-      logger,
-      autoLogging: true,
-    }),
-  );
+  app.use(httpLoggerMiddleware);
 
   app.get('/health', (req, res) => {
     const dbUp = mongoose.connection.readyState === 1;

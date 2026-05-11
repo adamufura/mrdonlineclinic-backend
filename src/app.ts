@@ -5,7 +5,6 @@ import express from 'express';
 import mongoSanitize from 'express-mongo-sanitize';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
-import { parseCorsOrigins } from './config/env';
 import { API_PREFIX } from './config/constants';
 import { httpLoggerMiddleware } from './config/httpLogger';
 import { errorHandler } from './middlewares/errorHandler';
@@ -18,7 +17,7 @@ export function createApp() {
   app.use(helmet());
   app.use(
     cors({
-      origin: parseCorsOrigins(),
+      origin: true,
       credentials: true,
     }),
   );

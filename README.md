@@ -45,5 +45,5 @@ npm test
 ## Security notes
 
 - Refresh tokens are stored hashed; access tokens are short-lived JWTs.
-- Configure CORS via `CORS_ORIGINS` (comma-separated) and set `CLIENT_URL` to the public SPA URL; the API always allows the origin of `CLIENT_URL` for credentialed requests.
+- CORS is open (any `Origin` is reflected); set `CLIENT_URL` to the public SPA base URL for email and invite links.
 - Use strong JWT secrets in production; rotate by deploying new secrets and invalidating old refresh tokens.

@@ -12,6 +12,7 @@ export type SafeUser = {
   status: string;
   isEmailVerified: boolean;
   lastLoginAt?: Date;
+  profilePhotoUrl?: string;
 };
 
 export type TokenPair = {

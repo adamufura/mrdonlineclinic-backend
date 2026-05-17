@@ -38,6 +38,10 @@ function toSafeUser(doc: Record<string, unknown>): SafeUser {
     status: doc.status as string,
     isEmailVerified: Boolean(doc.isEmailVerified),
     lastLoginAt: doc.lastLoginAt as Date | undefined,
+    profilePhotoUrl:
+      typeof doc.profilePhotoUrl === 'string' && doc.profilePhotoUrl.trim()
+        ? doc.profilePhotoUrl
+        : undefined,
   };
 }
 

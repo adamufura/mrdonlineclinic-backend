@@ -3,7 +3,11 @@ import utc from 'dayjs/plugin/utc';
 import type { Types } from 'mongoose';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
-import { uploadBuffer, uploadProfilePhoto } from '../../services/imagekit.service';
+import {
+  practitionerCredentialsFolder,
+  uploadBuffer,
+  uploadProfilePhoto,
+} from '../../services/imagekit.service';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { ReviewModel } from '../reviews/review.model';
 import { SlotModel } from '../slots/slot.model';
@@ -51,7 +55,7 @@ export async function uploadCredentials(userId: Types.ObjectId, file: Express.Mu
   const uploaded = await uploadBuffer({
     buffer: file.buffer,
     fileName: file.originalname || 'license.pdf',
-    folder: `/mrdonlineclinic/practitioners/${String(userId)}/credentials`,
+    folder: practitionerCredentialsFolder(String(userId)),
   });
   p.licenseDocumentUrl = uploaded.url;
   p.verificationStatus = 'PENDING_REVIEW';

@@ -3,7 +3,7 @@ import type { Types } from 'mongoose';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { domainEvents } from '../../events/domain.events';
-import { uploadBuffer } from '../../services/imagekit.service';
+import { prescriptionFolder, uploadBuffer } from '../../services/imagekit.service';
 import { buildPrescriptionPdf } from '../../services/pdf/prescription-pdf';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { createNotification } from '../notifications/notification.service';
@@ -104,7 +104,7 @@ export async function issuePrescription(
     const uploaded = await uploadBuffer({
       buffer: pdfBuf,
       fileName: `${prescriptionNumber}.pdf`,
-      folder: `/mrdonlineclinic/prescriptions/${String(rx._id)}`,
+      folder: prescriptionFolder(String(rx._id)),
     });
     await PrescriptionModel.updateOne({ _id: rx._id }, { $set: { pdfUrl: uploaded.url } });
 

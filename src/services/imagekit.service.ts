@@ -4,7 +4,12 @@ import { getEnv } from '../config/env';
 import { logger } from '../config/logger';
 import { AppError } from '../shared/errors';
 
-export type ImageKitMediaRole = 'patients' | 'practitioners' | 'prescriptions';
+/** Top-level ImageKit folder names (see .env.example). */
+export const IMAGEKIT_ROOT = {
+  patient: 'mrd_patient',
+  practitioner: 'mrd_practitioner',
+  prescriptions: 'mrd_prescriptions',
+} as const;
 
 function getClient(): ImageKit {
   const env = getEnv();
@@ -18,9 +23,20 @@ function getClient(): ImageKit {
   });
 }
 
-/** ImageKit folder for a user's profile photo. */
+/** e.g. /mrd_patient/{userId}/profile */
 export function profilePhotoFolder(role: 'patients' | 'practitioners', userId: string): string {
-  return `/mrdonlineclinic/${role}/${userId}/profile`;
+  const root = role === 'patients' ? IMAGEKIT_ROOT.patient : IMAGEKIT_ROOT.practitioner;
+  return `/${root}/${userId}/profile`;
+}
+
+/** e.g. /mrd_practitioner/{userId}/credentials */
+export function practitionerCredentialsFolder(userId: string): string {
+  return `/${IMAGEKIT_ROOT.practitioner}/${userId}/credentials`;
+}
+
+/** e.g. /mrd_prescriptions/{prescriptionId} */
+export function prescriptionFolder(prescriptionId: string): string {
+  return `/${IMAGEKIT_ROOT.prescriptions}/${prescriptionId}`;
 }
 
 function sanitizeFileName(name: string, fallbackExt = '.jpg'): string {

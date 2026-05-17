@@ -268,15 +268,28 @@ export async function resetPassword(token: string, password: string) {
   return { message: 'Password updated' };
 }
 
-export async function changePassword(userId: Types.ObjectId, currentPassword: string, newPassword: string) {
+export async function changePassword(
+  userId: Types.ObjectId,
+  currentPassword: string,
+  newPassword: string,
+  req: Request,
+) {
+  if (!req.user) throw new AuthError();
+
   const user = await UserModel.findById(userId).select('+passwordHash');
   if (!user) throw new NotFoundError('User not found');
-  const ok = await verifyPassword(currentPassword, user.passwordHash);
-  if (!ok) throw new AuthError('Current password is incorrect');
+
+  const currentOk = await verifyPassword(currentPassword, user.passwordHash);
+  if (!currentOk) {
+    throw new ValidationError('Current password is incorrect');
+  }
+
   user.passwordHash = await hashPassword(newPassword);
   user.set('refreshTokens', []);
   await user.save();
-  return { message: 'Password changed' };
+
+  const tokens = await issueTokens(userId, req.user.role, req.user.adminRole, req);
+  return { message: 'Password changed successfully', tokens };
 }
 
 export async function getMe(userId: Types.ObjectId) {

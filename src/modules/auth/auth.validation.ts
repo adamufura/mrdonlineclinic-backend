@@ -51,10 +51,15 @@ export const resetPasswordSchema = z.object({
   password: strongPassword,
 });
 
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: strongPassword,
-});
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: strongPassword,
+  })
+  .refine((d) => d.currentPassword !== d.newPassword, {
+    message: 'New password must be different from your current password',
+    path: ['newPassword'],
+  });
 
 export const adminLoginSchema = loginSchema;
 

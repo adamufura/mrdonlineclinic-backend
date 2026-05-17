@@ -59,8 +59,14 @@ export async function resetPassword(req: Request, res: Response) {
 
 export async function changePassword(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const result = await authService.changePassword(req.user.id, req.body.currentPassword, req.body.newPassword);
-  return res.json(ok(result.message, result));
+  const result = await authService.changePassword(
+    req.user.id,
+    req.body.currentPassword,
+    req.body.newPassword,
+    req,
+  );
+  setRefreshTokenCookie(res, result.tokens.refreshToken);
+  return res.json(ok(result.message, { tokens: result.tokens }));
 }
 
 export async function me(req: Request, res: Response) {

@@ -1,4 +1,5 @@
 import {
+  changePasswordSchema,
   registerPatientSchema,
   registerPractitionerSchema,
 } from '../src/modules/auth/auth.validation';
@@ -59,6 +60,22 @@ describe('auth.validation', () => {
     const parsed = registerPractitionerSchema.safeParse({
       ...validPractitionerBase,
       specialties: ['507f1f77bcf86cd799439011'],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('changePassword rejects when new password matches current', () => {
+    const parsed = changePasswordSchema.safeParse({
+      currentPassword: 'Aa1!aaaa',
+      newPassword: 'Aa1!aaaa',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('changePassword accepts when new password differs', () => {
+    const parsed = changePasswordSchema.safeParse({
+      currentPassword: 'Aa1!aaaa',
+      newPassword: 'Bb2@bbbb',
     });
     expect(parsed.success).toBe(true);
   });

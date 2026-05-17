@@ -60,6 +60,8 @@ const patientSchema = new Schema({
     postalCode: String,
   },
   profilePhotoUrl: { type: String },
+  /** ImageKit fileId — used to delete the previous photo on replace. */
+  profilePhotoFileId: { type: String, select: false },
   profileCompletedAt: { type: Date },
 });
 
@@ -78,6 +80,7 @@ const practitionerSchema = new Schema({
   yearsOfExperience: { type: Number },
   bio: { type: String },
   profilePhotoUrl: { type: String },
+  profilePhotoFileId: { type: String, select: false },
   consultationLanguages: [{ type: String }],
   verificationStatus: {
     type: String,

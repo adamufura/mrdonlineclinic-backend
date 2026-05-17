@@ -1,7 +1,7 @@
 import type { Types } from 'mongoose';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
-import { uploadBuffer } from '../../services/imagekit.service';
+import { uploadProfilePhoto } from '../../services/imagekit.service';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { PatientModel } from '../users/user.model';
 import { PrescriptionModel } from '../prescriptions/prescription.model';
@@ -85,14 +85,18 @@ export async function updateMyAddress(
 }
 
 export async function uploadMyPhoto(userId: Types.ObjectId, file: Express.Multer.File) {
-  const patient = await PatientModel.findById(userId);
+  const patient = await PatientModel.findById(userId).select('+profilePhotoFileId');
   if (!patient) throw new NotFoundError('Patient not found');
-  const uploaded = await uploadBuffer({
+  const uploaded = await uploadProfilePhoto({
+    role: 'patients',
+    userId: String(userId),
     buffer: file.buffer,
     fileName: file.originalname || 'profile.jpg',
-    folder: '/patients/profile',
+    mimeType: file.mimetype,
+    previousFileId: patient.profilePhotoFileId,
   });
   patient.profilePhotoUrl = uploaded.url;
+  patient.set('profilePhotoFileId', uploaded.fileId);
   await patient.save();
   return { profilePhotoUrl: uploaded.url };
 }

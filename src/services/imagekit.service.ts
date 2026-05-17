@@ -1,6 +1,10 @@
 import ImageKit from 'imagekit';
+import path from 'path';
 import { getEnv } from '../config/env';
+import { logger } from '../config/logger';
 import { AppError } from '../shared/errors';
+
+export type ImageKitMediaRole = 'patients' | 'practitioners' | 'prescriptions';
 
 function getClient(): ImageKit {
   const env = getEnv();
@@ -14,18 +18,71 @@ function getClient(): ImageKit {
   });
 }
 
+/** ImageKit folder for a user's profile photo. */
+export function profilePhotoFolder(role: 'patients' | 'practitioners', userId: string): string {
+  return `/mrdonlineclinic/${role}/${userId}/profile`;
+}
+
+function sanitizeFileName(name: string, fallbackExt = '.jpg'): string {
+  const base = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!base || base === '.' || base === '..') return `upload${fallbackExt}`;
+  return base;
+}
+
+function extFromMime(mimeType?: string): string {
+  if (!mimeType) return '.jpg';
+  if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'image/webp') return '.webp';
+  if (mimeType === 'image/gif') return '.gif';
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return '.jpg';
+  return '.jpg';
+}
+
+export async function deleteFileById(fileId: string | null | undefined): Promise<void> {
+  if (!fileId?.trim()) return;
+  try {
+    const client = getClient();
+    await client.deleteFile(fileId);
+  } catch (err) {
+    logger.warn({ err, fileId }, 'ImageKit deleteFile failed (continuing)');
+  }
+}
+
 export async function uploadBuffer(options: {
   buffer: Buffer;
   fileName: string;
   folder: string;
   mimeType?: string;
-}): Promise<{ url: string; fileId: string }> {
+  useUniqueFileName?: boolean;
+}): Promise<{ url: string; fileId: string; filePath: string }> {
   const client = getClient();
+  const ext = extFromMime(options.mimeType);
+  const safeName = sanitizeFileName(options.fileName, ext);
   const res = await client.upload({
     file: options.buffer,
-    fileName: options.fileName,
+    fileName: safeName.endsWith(ext) ? safeName : `${safeName.replace(/\.[^.]+$/, '')}${ext}`,
     folder: options.folder,
+    useUniqueFileName: options.useUniqueFileName ?? true,
+  });
+  return { url: res.url, fileId: res.fileId, filePath: res.filePath };
+}
+
+/** Upload profile photo to role/user folder and remove previous ImageKit asset when present. */
+export async function uploadProfilePhoto(options: {
+  role: 'patients' | 'practitioners';
+  userId: string;
+  buffer: Buffer;
+  fileName: string;
+  mimeType?: string;
+  previousFileId?: string | null;
+}): Promise<{ url: string; fileId: string }> {
+  await deleteFileById(options.previousFileId);
+  const uploaded = await uploadBuffer({
+    buffer: options.buffer,
+    fileName: options.fileName,
+    folder: profilePhotoFolder(options.role, options.userId),
+    mimeType: options.mimeType,
     useUniqueFileName: true,
   });
-  return { url: res.url, fileId: res.fileId };
+  return { url: uploaded.url, fileId: uploaded.fileId };
 }

@@ -104,7 +104,7 @@ export async function issuePrescription(
     const uploaded = await uploadBuffer({
       buffer: pdfBuf,
       fileName: `${prescriptionNumber}.pdf`,
-      folder: '/prescriptions',
+      folder: `/mrdonlineclinic/prescriptions/${String(rx._id)}`,
     });
     await PrescriptionModel.updateOne({ _id: rx._id }, { $set: { pdfUrl: uploaded.url } });
 

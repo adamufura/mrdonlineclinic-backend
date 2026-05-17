@@ -3,7 +3,7 @@ import utc from 'dayjs/plugin/utc';
 import type { Types } from 'mongoose';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
-import { uploadBuffer } from '../../services/imagekit.service';
+import { uploadBuffer, uploadProfilePhoto } from '../../services/imagekit.service';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { ReviewModel } from '../reviews/review.model';
 import { SlotModel } from '../slots/slot.model';
@@ -51,7 +51,7 @@ export async function uploadCredentials(userId: Types.ObjectId, file: Express.Mu
   const uploaded = await uploadBuffer({
     buffer: file.buffer,
     fileName: file.originalname || 'license.pdf',
-    folder: '/practitioners/credentials',
+    folder: `/mrdonlineclinic/practitioners/${String(userId)}/credentials`,
   });
   p.licenseDocumentUrl = uploaded.url;
   p.verificationStatus = 'PENDING_REVIEW';
@@ -60,14 +60,18 @@ export async function uploadCredentials(userId: Types.ObjectId, file: Express.Mu
 }
 
 export async function uploadPhoto(userId: Types.ObjectId, file: Express.Multer.File) {
-  const p = await PractitionerModel.findById(userId);
+  const p = await PractitionerModel.findById(userId).select('+profilePhotoFileId');
   if (!p) throw new NotFoundError('Practitioner not found');
-  const uploaded = await uploadBuffer({
+  const uploaded = await uploadProfilePhoto({
+    role: 'practitioners',
+    userId: String(userId),
     buffer: file.buffer,
     fileName: file.originalname || 'profile.jpg',
-    folder: '/practitioners/profile',
+    mimeType: file.mimetype,
+    previousFileId: p.profilePhotoFileId,
   });
   p.profilePhotoUrl = uploaded.url;
+  p.set('profilePhotoFileId', uploaded.fileId);
   await p.save();
   return { profilePhotoUrl: uploaded.url };
 }

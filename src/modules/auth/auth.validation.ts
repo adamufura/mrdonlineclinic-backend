@@ -1,20 +1,19 @@
 import { z } from 'zod';
 
-const strongPassword = z
+const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{}|;:'",.<>?/~`]+$/;
+
+const passwordSchema = z
   .string()
-  .min(8)
-  .max(128)
-  .regex(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/,
-    'Password must include uppercase, lowercase, number, and special character',
-  );
+  .min(6, 'Password must be at least 6 characters')
+  .max(12, 'Password must be at most 12 characters')
+  .regex(PASSWORD_PATTERN, 'Password must use only letters, numbers, and common special characters');
 
 export const registerPatientSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   email: z.string().email().max(255),
   phoneNumber: z.string().min(5).max(30),
-  password: strongPassword,
+  password: passwordSchema,
 });
 
 const mongoObjectIdString = z
@@ -48,13 +47,13 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: strongPassword,
+  password: passwordSchema,
 });
 
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: strongPassword,
+    newPassword: passwordSchema,
   })
   .refine((d) => d.currentPassword !== d.newPassword, {
     message: 'New password must be different from your current password',
@@ -65,5 +64,5 @@ export const adminLoginSchema = loginSchema;
 
 export const acceptAdminInviteSchema = z.object({
   token: z.string().min(1),
-  password: strongPassword,
+  password: passwordSchema,
 });

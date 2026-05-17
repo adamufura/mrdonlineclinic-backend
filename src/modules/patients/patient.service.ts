@@ -23,16 +23,65 @@ export async function updateMyProfile(userId: Types.ObjectId, body: Record<strin
   return patient.toObject();
 }
 
-export async function updateMyMedical(userId: Types.ObjectId, body: Record<string, unknown>) {
-  const patient = await PatientModel.findById(userId);
-  if (!patient) throw new NotFoundError('Patient not found');
+function applyMedicalPatch(patient: InstanceType<typeof PatientModel>, body: Record<string, unknown>) {
   if (body.allergies !== undefined) patient.set('allergies', body.allergies);
   if (body.chronicConditions !== undefined) patient.set('chronicConditions', body.chronicConditions);
   if (body.currentMedications !== undefined) patient.set('currentMedications', body.currentMedications);
-  if (body.emergencyContact !== undefined) patient.set('emergencyContact', body.emergencyContact);
-  if (body.address !== undefined) patient.set('address', body.address);
+  if (body.emergencyContact !== undefined) {
+    if (body.emergencyContact === null) {
+      patient.set('emergencyContact', undefined);
+    } else {
+      patient.set('emergencyContact', body.emergencyContact);
+    }
+  }
+  if (body.address !== undefined) {
+    if (body.address === null) {
+      patient.set('address', undefined);
+    } else {
+      patient.set('address', body.address);
+    }
+  }
+}
+
+export async function updateMyMedical(userId: Types.ObjectId, body: Record<string, unknown>) {
+  const patient = await PatientModel.findById(userId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  applyMedicalPatch(patient, body);
   await patient.save();
   return patient.toObject();
+}
+
+export async function updateMyHealthRecord(
+  userId: Types.ObjectId,
+  body: { allergies: string[]; chronicConditions: string[]; currentMedications: string[] },
+) {
+  return updateMyMedical(userId, {
+    allergies: body.allergies,
+    chronicConditions: body.chronicConditions,
+    currentMedications: body.currentMedications,
+  });
+}
+
+export async function updateMyEmergencyContact(
+  userId: Types.ObjectId,
+  body: { emergencyContact: { name: string; relationship: string; phoneNumber: string } | null },
+) {
+  return updateMyMedical(userId, { emergencyContact: body.emergencyContact });
+}
+
+export async function updateMyAddress(
+  userId: Types.ObjectId,
+  body: {
+    address: {
+      street?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      postalCode?: string;
+    } | null;
+  },
+) {
+  return updateMyMedical(userId, { address: body.address });
 }
 
 export async function uploadMyPhoto(userId: Types.ObjectId, file: Express.Multer.File) {

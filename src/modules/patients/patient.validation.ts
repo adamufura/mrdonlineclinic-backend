@@ -30,26 +30,43 @@ export const updatePatientProfileSchema = z
     }
   });
 
+const emergencyContactSchema = z.object({
+  name: z.string().min(1).max(120),
+  relationship: z.string().min(1).max(80),
+  phoneNumber: z.string().min(5).max(30),
+});
+
+const addressSchema = z.object({
+  street: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+});
+
 export const updatePatientMedicalSchema = z.object({
   allergies: z.array(z.string()).optional(),
   chronicConditions: z.array(z.string()).optional(),
   currentMedications: z.array(z.string()).optional(),
-  emergencyContact: z
-    .object({
-      name: z.string(),
-      relationship: z.string(),
-      phoneNumber: z.string(),
-    })
-    .optional(),
-  address: z
-    .object({
-      street: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      country: z.string().optional(),
-      postalCode: z.string().optional(),
-    })
-    .optional(),
+  emergencyContact: emergencyContactSchema.nullable().optional(),
+  address: addressSchema.nullable().optional(),
+});
+
+/** PATCH /patients/me/medical/health-record — replaces list fields (empty array clears). */
+export const updatePatientHealthRecordSchema = z.object({
+  allergies: z.array(z.string().max(200)),
+  chronicConditions: z.array(z.string().max(200)),
+  currentMedications: z.array(z.string().max(200)),
+});
+
+/** PATCH /patients/me/medical/emergency — set contact or null to remove. */
+export const updatePatientEmergencySchema = z.object({
+  emergencyContact: z.union([emergencyContactSchema, z.null()]),
+});
+
+/** PATCH /patients/me/medical/address — set address or null to remove. */
+export const updatePatientAddressSchema = z.object({
+  address: z.union([addressSchema, z.null()]),
 });
 
 export const listPatientAppointmentsQuerySchema = paginationQuerySchema.extend({

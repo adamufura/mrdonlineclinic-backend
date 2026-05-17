@@ -21,6 +21,24 @@ export async function patchMedical(req: Request, res: Response) {
   return res.json(ok('Medical info updated', data));
 }
 
+export async function patchHealthRecord(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updateMyHealthRecord(req.user.id, req.body);
+  return res.json(ok('Health record updated', data));
+}
+
+export async function patchEmergency(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updateMyEmergencyContact(req.user.id, req.body);
+  return res.json(ok('Emergency contact updated', data));
+}
+
+export async function patchAddress(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updateMyAddress(req.user.id, req.body);
+  return res.json(ok('Address updated', data));
+}
+
 export async function postPhoto(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
   if (!req.file) throw new ValidationError('No file uploaded');

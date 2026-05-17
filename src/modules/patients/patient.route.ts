@@ -9,6 +9,9 @@ import {
   adminPatientIdParamSchema,
   listPatientAppointmentsQuerySchema,
   listPatientsAdminQuerySchema,
+  updatePatientAddressSchema,
+  updatePatientEmergencySchema,
+  updatePatientHealthRecordSchema,
   updatePatientMedicalSchema,
   updatePatientProfileSchema,
 } from './patient.validation';
@@ -21,6 +24,9 @@ router.use(authenticate, requireRole('PATIENT'));
 router.get('/me', asyncHandler(ctrl.me));
 router.patch('/me', validateBody(updatePatientProfileSchema), asyncHandler(ctrl.patchMe));
 router.patch('/me/medical', validateBody(updatePatientMedicalSchema), asyncHandler(ctrl.patchMedical));
+router.patch('/me/medical/health-record', validateBody(updatePatientHealthRecordSchema), asyncHandler(ctrl.patchHealthRecord));
+router.patch('/me/medical/emergency', validateBody(updatePatientEmergencySchema), asyncHandler(ctrl.patchEmergency));
+router.patch('/me/medical/address', validateBody(updatePatientAddressSchema), asyncHandler(ctrl.patchAddress));
 router.post('/me/photo', (req, res, next) => {
   uploadSingleImage(req, res, (err) => {
     if (err) return next(err);

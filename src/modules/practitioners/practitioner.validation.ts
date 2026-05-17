@@ -15,6 +15,7 @@ export const updatePractitionerProfileSchema = z
     middleName: z.string().max(100).optional(),
     lastName: z.string().min(1).max(100).optional(),
     phoneNumber: z.string().min(5).max(30).optional(),
+    licenseNumber: z.string().min(2).max(80).optional(),
     bio: z.string().max(5000).optional(),
     yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
     qualifications: z

@@ -34,6 +34,7 @@ export async function updateMyProfile(userId: Types.ObjectId, body: Record<strin
   if (body.middleName !== undefined) p.middleName = body.middleName as string;
   if (body.lastName !== undefined) p.lastName = body.lastName as string;
   if (body.phoneNumber !== undefined) p.phoneNumber = body.phoneNumber as string;
+  if (body.licenseNumber !== undefined) p.licenseNumber = body.licenseNumber as string;
   if (body.bio !== undefined) p.bio = body.bio as string;
   if (body.yearsOfExperience !== undefined) p.yearsOfExperience = body.yearsOfExperience as number;
   if (body.qualifications !== undefined) p.set('qualifications', body.qualifications);

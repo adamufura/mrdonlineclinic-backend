@@ -26,10 +26,12 @@ export const postMessageHttpSchema = z
           type: z.string().optional(),
           fileName: z.string().optional(),
           size: z.number().optional(),
+          mimeType: z.string().optional(),
+          duration: z.number().optional(),
         }),
       )
       .optional(),
-    messageType: z.enum(['TEXT', 'IMAGE', 'FILE', 'SYSTEM']).optional(),
+    messageType: z.enum(['TEXT', 'IMAGE', 'FILE', 'VOICE', 'SYSTEM']).optional(),
   })
   .refine((d) => Boolean(d.content?.trim()) || (d.attachments && d.attachments.length > 0), {
     message: 'Provide content or at least one attachment',

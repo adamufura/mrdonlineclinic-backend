@@ -261,14 +261,21 @@ export async function markRoomReadAll(roomId: string, userId: Types.ObjectId) {
   return { marked: res.modifiedCount ?? 0 };
 }
 
-export async function createSocketMessage(roomId: string, userId: Types.ObjectId, content: string, messageType: string) {
+export async function createSocketMessage(
+  roomId: string,
+  userId: Types.ObjectId,
+  content: string,
+  messageType: string,
+  attachments?: { url: string; type?: string; fileName?: string; size?: number; mimeType?: string; duration?: number }[],
+) {
   const room = await assertParticipant(roomId, userId);
   if (room.isLocked) throw new ValidationError('Chat is locked');
   const msg = await MessageModel.create({
     chatRoom: roomId,
     sender: userId,
-    content,
+    content: content || undefined,
     messageType,
+    attachments: attachments ?? [],
   });
   await ChatRoomModel.updateOne({ _id: roomId }, { lastMessageAt: new Date() });
   return msg.toObject();

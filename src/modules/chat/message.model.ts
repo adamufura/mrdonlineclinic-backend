@@ -23,6 +23,8 @@ const attachmentSchema = new Schema(
     type: { type: String },
     fileName: { type: String },
     size: { type: Number },
+    mimeType: { type: String },
+    duration: { type: Number },
   },
   { _id: false },
 );

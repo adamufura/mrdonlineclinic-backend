@@ -43,7 +43,7 @@ export function registerChatNamespace(io: Server) {
       void socket.leave(roomId);
     });
 
-    socket.on('sendMessage', async (payload: { roomId: string; content: string; messageType?: string }, cb?: (err?: Error, msg?: unknown) => void) => {
+    socket.on('sendMessage', async (payload: { roomId: string; content: string; messageType?: string; attachments?: { url: string; type?: string; fileName?: string; size?: number; mimeType?: string; duration?: number }[] }, cb?: (err?: Error, msg?: unknown) => void) => {
       try {
         const now = Date.now();
         const prev = lastSend.get(String(userId)) ?? 0;
@@ -57,6 +57,7 @@ export function registerChatNamespace(io: Server) {
           userId,
           payload.content,
           payload.messageType ?? 'TEXT',
+          payload.attachments,
         );
         nsp.to(payload.roomId).emit('message', msg);
         cb?.(undefined, msg);

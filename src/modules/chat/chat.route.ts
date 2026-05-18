@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
+import { uploadSingleFile } from '../../middlewares/upload';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
 import * as ctrl from './chat.controller';
 import {
@@ -23,6 +24,14 @@ router.post(
   validateParams(roomIdParamSchema),
   validateBody(postMessageHttpSchema),
   asyncHandler(ctrl.postMessage),
+);
+router.post(
+  '/rooms/:roomId/upload',
+  validateParams(roomIdParamSchema),
+  (req, res, next) => {
+    uploadSingleFile(req, res, (err) => (err ? next(err) : next()));
+  },
+  asyncHandler(ctrl.uploadAttachment),
 );
 router.post(
   '/rooms/:roomId/messages/:messageId/read',

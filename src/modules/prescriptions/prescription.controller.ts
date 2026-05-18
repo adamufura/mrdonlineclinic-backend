@@ -16,6 +16,13 @@ export async function listMinePatient(req: Request, res: Response) {
   return res.json(ok('Prescriptions', result.items, result.meta));
 }
 
+export async function listMinePractitioner(req: Request, res: Response) {
+  if (!req.user || req.user.role !== 'PRACTITIONER') throw new AuthError();
+  const { page, limit } = req.query as unknown as { page: number; limit: number };
+  const result = await svc.listForPractitioner(req.user.id, page, limit);
+  return res.json(ok('Prescriptions', result.items, result.meta));
+}
+
 export async function getById(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
   const data = await svc.getByIdForUser(req.params.id, req.user.id, req.user.role);

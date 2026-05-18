@@ -141,6 +141,17 @@ export async function listForPatient(patientId: Types.ObjectId, page: number, li
   return { items: rows, meta: buildMeta(total, page, limit) };
 }
 
+export async function listForPractitioner(practitionerId: Types.ObjectId, page: number, limit: number) {
+  const total = await PrescriptionModel.countDocuments({ practitioner: practitionerId });
+  const rows = await PrescriptionModel.find({ practitioner: practitionerId })
+    .sort({ issuedAt: -1 })
+    .skip(skipForPage(page, limit))
+    .limit(limit)
+    .populate('patient', 'firstName lastName')
+    .lean();
+  return { items: rows, meta: buildMeta(total, page, limit) };
+}
+
 export async function getByIdForUser(id: string, userId: Types.ObjectId, role: string) {
   const rx = await PrescriptionModel.findById(id).populate('patient practitioner appointment');
   if (!rx) throw new NotFoundError('Prescription not found');

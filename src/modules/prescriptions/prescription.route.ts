@@ -11,6 +11,7 @@ router.use(authenticate);
 
 router.post('/', requireRole('PRACTITIONER'), validateBody(issuePrescriptionSchema), asyncHandler(ctrl.issue));
 router.get('/me', requireRole('PATIENT'), validateQuery(listPrescriptionsQuerySchema), asyncHandler(ctrl.listMinePatient));
+router.get('/me/practitioner', requireRole('PRACTITIONER'), validateQuery(listPrescriptionsQuerySchema), asyncHandler(ctrl.listMinePractitioner));
 router.get('/:id', validateParams(prescriptionIdParamSchema), asyncHandler(ctrl.getById));
 
 export const prescriptionRouter = router;

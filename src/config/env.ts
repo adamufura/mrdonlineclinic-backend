@@ -25,6 +25,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().email().optional().default('noreply@mrdonlineclinic.local'),
+  AGORA_APP_ID: z.string().min(1).optional(),
+  AGORA_APP_CERTIFICATE: z.string().min(1).optional(),
   IMAGEKIT_PUBLIC_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   IMAGEKIT_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   IMAGEKIT_URL_ENDPOINT: z.preprocess(emptyToUndefined, z.string().url().optional()),

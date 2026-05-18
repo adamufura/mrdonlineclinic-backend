@@ -3,6 +3,7 @@ import type { Server } from 'socket.io';
 import { AuthError, ValidationError } from '../../shared/errors';
 import { ok } from '../../shared/envelope';
 import { uploadBuffer } from '../../services/imagekit.service';
+import { transcodeToMp4 } from '../../services/audio-transcode';
 import * as svc from './chat.service';
 
 export async function listRooms(req: Request, res: Response) {
@@ -73,20 +74,35 @@ export async function uploadAttachment(req: Request, res: Response) {
     throw new ValidationError('Audio must be under 10MB');
   }
 
+  let uploadBuf = file.buffer;
+  let uploadMime = mime;
+  let uploadFileName = file.originalname || (isImage ? 'image.jpg' : 'voice-note.webm');
+
+  // Transcode non-mp4 audio to mp4/aac for universal playback (iOS can't play webm/ogg)
+  if (isAudio && !mime.includes('mp4') && !mime.includes('m4a') && !mime.includes('aac') && !mime.includes('mpeg')) {
+    try {
+      uploadBuf = await transcodeToMp4(file.buffer, mime);
+      uploadMime = 'audio/mp4';
+      uploadFileName = uploadFileName.replace(/\.[^.]+$/, '.mp4');
+    } catch {
+      // If transcoding fails, upload original format
+    }
+  }
+
   const folder = isImage ? '/chat/images' : '/chat/voice';
   const uploaded = await uploadBuffer({
-    buffer: file.buffer,
-    fileName: file.originalname || (isImage ? 'image.jpg' : 'voice-note.webm'),
+    buffer: uploadBuf,
+    fileName: uploadFileName,
     folder,
-    mimeType: mime,
+    mimeType: uploadMime,
   });
 
   return res.status(201).json(ok('File uploaded', {
     url: uploaded.url,
     type: isImage ? 'image' : 'voice',
-    fileName: file.originalname || (isImage ? 'image.jpg' : 'voice-note.webm'),
-    mimeType: mime,
-    size: file.size,
+    fileName: uploadFileName,
+    mimeType: uploadMime,
+    size: uploadBuf.length,
     duration: null,
   }));
 }

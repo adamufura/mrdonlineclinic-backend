@@ -6,18 +6,34 @@ import { requirePermission } from '../../middlewares/requirePermission';
 import { requireRole } from '../../middlewares/requireRole';
 import { requireSuperAdmin } from '../../middlewares/requireSuperAdmin';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
-import { paginationQuerySchema } from '../../shared/pagination';
 import * as ctrl from './admin.controller';
-import { adminIdParamSchema, auditLogQuerySchema, changeAdminRoleSchema, createAdminSchema } from './admin.validation';
+import {
+  adminIdParamSchema,
+  auditLogQuerySchema,
+  changeAdminRoleSchema,
+  createAdminSchema,
+  globalSearchQuerySchema,
+  listAdminsQuerySchema,
+  updateAdminSchema,
+} from './admin.validation';
 
 const router = Router();
 router.use(authenticate, requireRole('ADMIN'));
 
 router.get('/stats', requirePermission('stats:read'), asyncHandler(ctrl.stats));
+router.get('/search', requirePermission('stats:read'), validateQuery(globalSearchQuerySchema), asyncHandler(ctrl.search));
 router.get('/audit-logs', requirePermission('audit:read'), validateQuery(auditLogQuerySchema), asyncHandler(ctrl.auditLogs));
 
 router.post('/users', requireMinistryStaffManager, validateBody(createAdminSchema), asyncHandler(ctrl.create));
-router.get('/users', requirePermission('admins:read'), validateQuery(paginationQuerySchema), asyncHandler(ctrl.list));
+router.get('/users', requirePermission('admins:read'), validateQuery(listAdminsQuerySchema), asyncHandler(ctrl.list));
+router.get('/users/:id', requirePermission('admins:read'), validateParams(adminIdParamSchema), asyncHandler(ctrl.getById));
+router.patch(
+  '/users/:id',
+  requireMinistryStaffManager,
+  validateParams(adminIdParamSchema),
+  validateBody(updateAdminSchema),
+  asyncHandler(ctrl.update),
+);
 router.post(
   '/users/:id/deactivate',
   requireMinistryStaffManager,

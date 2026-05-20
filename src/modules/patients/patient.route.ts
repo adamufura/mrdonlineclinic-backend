@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
 import { requirePermission } from '../../middlewares/requirePermission';
 import { requireRole } from '../../middlewares/requireRole';
+import { requireSuperAdmin } from '../../middlewares/requireSuperAdmin';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
 import { uploadSingleImage } from '../../middlewares/upload';
 import * as ctrl from './patient.controller';
@@ -11,6 +12,7 @@ import {
   createPatientAdminSchema,
   listPatientAppointmentsQuerySchema,
   listPatientsAdminQuerySchema,
+  updatePatientAdminSchema,
   updatePatientProfileSchema,
   updatePatientAddressSchema,
   updatePatientEmergencySchema,
@@ -47,8 +49,14 @@ adminRouter.patch(
   '/:id',
   requirePermission('patients:write'),
   validateParams(adminPatientIdParamSchema),
-  validateBody(updatePatientProfileSchema),
+  validateBody(updatePatientAdminSchema),
   asyncHandler(ctrl.adminPatch),
+);
+adminRouter.delete(
+  '/:id',
+  requireSuperAdmin,
+  validateParams(adminPatientIdParamSchema),
+  asyncHandler(ctrl.adminRemove),
 );
 
 export const patientRouter = router;

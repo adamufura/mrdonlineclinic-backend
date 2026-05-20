@@ -11,8 +11,9 @@ import { ConflictError, ForbiddenError, NotFoundError } from '../../shared/error
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { AuditLogModel } from '../audit/audit-log.model';
-import { UserModel, AdminModel } from '../users/user.model';
+import { PatientModel, PractitionerModel, UserModel, AdminModel } from '../users/user.model';
 import { auditLog } from '../audit/audit.service';
+import { buildSearchOr } from '../../shared/search';
 
 export async function createAdmin(
   actorId: Types.ObjectId,
@@ -74,8 +75,17 @@ export async function createAdmin(
   };
 }
 
-export async function listAdmins(page: number, limit: number) {
-  const filter = { role: 'ADMIN' };
+export async function listAdmins(
+  page: number,
+  limit: number,
+  opts?: { search?: string; status?: string; adminRole?: string },
+) {
+  const filter: Record<string, unknown> = { role: 'ADMIN' };
+  if (opts?.status) filter.status = opts.status;
+  if (opts?.adminRole) filter.adminRole = opts.adminRole;
+  if (opts?.search?.trim()) {
+    filter.$or = buildSearchOr(['firstName', 'lastName', 'email', 'phoneNumber'], opts.search);
+  }
   const total = await AdminModel.countDocuments(filter);
   const rows = await AdminModel.find(filter)
     .sort({ createdAt: -1 })
@@ -84,6 +94,61 @@ export async function listAdmins(page: number, limit: number) {
     .select('-passwordHash -refreshTokens -invitationToken')
     .lean();
   return { items: rows, meta: buildMeta(total, page, limit) };
+}
+
+export async function getAdminById(id: string) {
+  const admin = await AdminModel.findById(id)
+    .select('-passwordHash -refreshTokens -invitationToken')
+    .lean();
+  if (!admin) throw new NotFoundError('Admin not found');
+  return admin;
+}
+
+export async function updateAdmin(
+  actorId: Types.ObjectId,
+  actorRole: string | undefined,
+  targetId: string,
+  body: {
+    firstName?: string;
+    lastName?: string;
+    middleName?: string;
+    phoneNumber?: string;
+    status?: string;
+  },
+  req: import('express').Request,
+) {
+  const admin = await AdminModel.findById(targetId);
+  if (!admin) throw new NotFoundError('Admin not found');
+  if (admin.adminRole === 'SUPER_ADMIN' && String(actorId) !== targetId && body.status) {
+    throw new ForbiddenError('Cannot change super admin status');
+  }
+  if (!canAssignAdminRole(actorRole, normalizeAdminRole(admin.adminRole) ?? 'OPERATIONS') && String(actorId) !== targetId) {
+    throw new ForbiddenError('You cannot update this account');
+  }
+  if (body.phoneNumber && body.phoneNumber !== admin.phoneNumber) {
+    const phoneExists = await UserModel.exists({ phoneNumber: body.phoneNumber, _id: { $ne: targetId } });
+    if (phoneExists) throw new ConflictError('Phone number already in use');
+  }
+  if (body.firstName !== undefined) admin.firstName = body.firstName;
+  if (body.lastName !== undefined) admin.lastName = body.lastName;
+  if (body.middleName !== undefined) admin.middleName = body.middleName;
+  if (body.phoneNumber !== undefined) admin.phoneNumber = body.phoneNumber;
+  if (body.status !== undefined) {
+    admin.status = body.status as typeof admin.status;
+  }
+  await admin.save();
+  await auditLog({
+    actor: actorId,
+    actorRole: normalizeAdminRole(actorRole) ?? 'ADMIN',
+    action: 'ADMIN_UPDATED',
+    targetType: 'User',
+    targetId,
+    metadata: body,
+    req,
+  });
+  const obj = admin.toObject();
+  delete (obj as { passwordHash?: string }).passwordHash;
+  return obj;
 }
 
 export async function deactivateAdmin(actorId: Types.ObjectId, actorRole: string | undefined, targetId: string, req: import('express').Request) {
@@ -175,13 +240,78 @@ export async function resetAdminPassword(actorId: Types.ObjectId, targetId: stri
 }
 
 export async function platformStats() {
-  const [patients, practitioners, admins, appointments] = await Promise.all([
+  const [
+    patients,
+    practitioners,
+    admins,
+    appointments,
+    pendingVerification,
+    pendingAppointments,
+    completedAppointments,
+    activePatients,
+    activePractitioners,
+  ] = await Promise.all([
     UserModel.countDocuments({ role: 'PATIENT' }),
     UserModel.countDocuments({ role: 'PRACTITIONER' }),
     UserModel.countDocuments({ role: 'ADMIN' }),
     AppointmentModel.countDocuments({}),
+    PractitionerModel.countDocuments({
+      role: 'PRACTITIONER',
+      verificationStatus: { $in: ['UNVERIFIED', 'PENDING_REVIEW'] },
+    }),
+    AppointmentModel.countDocuments({ status: 'PENDING' }),
+    AppointmentModel.countDocuments({ status: 'COMPLETED' }),
+    UserModel.countDocuments({ role: 'PATIENT', status: 'ACTIVE' }),
+    PractitionerModel.countDocuments({ role: 'PRACTITIONER', status: 'ACTIVE', verificationStatus: 'VERIFIED' }),
   ]);
-  return { patients, practitioners, admins, appointments };
+
+  const recentAudit = await AuditLogModel.find({})
+    .sort({ createdAt: -1 })
+    .limit(8)
+    .populate('actor', 'firstName lastName email adminRole')
+    .lean();
+
+  const appointmentsByStatus = await AppointmentModel.aggregate<{ _id: string; count: number }>([
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]);
+
+  return {
+    patients,
+    practitioners,
+    admins,
+    appointments,
+    pendingVerification,
+    pendingAppointments,
+    completedAppointments,
+    activePatients,
+    activePractitioners,
+    appointmentsByStatus: Object.fromEntries(appointmentsByStatus.map((r) => [r._id, r.count])),
+    recentAudit,
+  };
+}
+
+export async function globalSearch(q: string, limit: number) {
+  const term = q.trim();
+  if (!term) return { practitioners: [], patients: [], staff: [] };
+
+  const or = buildSearchOr(['firstName', 'lastName', 'email', 'phoneNumber'], term);
+
+  const [practitioners, patients, staff] = await Promise.all([
+    PractitionerModel.find({ role: 'PRACTITIONER', $or: or })
+      .select('firstName lastName email verificationStatus status')
+      .limit(limit)
+      .lean(),
+    PatientModel.find({ role: 'PATIENT', $or: or })
+      .select('firstName lastName email status')
+      .limit(limit)
+      .lean(),
+    AdminModel.find({ role: 'ADMIN', $or: or })
+      .select('firstName lastName email adminRole status')
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return { practitioners, patients, staff };
 }
 
 export async function listAuditLogs(page: number, limit: number, action?: string) {

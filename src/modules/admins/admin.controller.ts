@@ -10,9 +10,32 @@ export async function create(req: Request, res: Response) {
 }
 
 export async function list(req: Request, res: Response) {
-  const { page, limit } = req.query as unknown as { page: number; limit: number };
-  const result = await svc.listAdmins(page, limit);
+  const { page, limit, search, status, adminRole } = req.query as unknown as {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+    adminRole?: string;
+  };
+  const result = await svc.listAdmins(page, limit, { search, status, adminRole });
   return res.json(ok('Admins', result.items, result.meta));
+}
+
+export async function getById(req: Request, res: Response) {
+  const data = await svc.getAdminById(req.params.id);
+  return res.json(ok('Admin', data));
+}
+
+export async function update(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updateAdmin(req.user.id, req.user.adminRole, req.params.id, req.body, req);
+  return res.json(ok('Admin updated', data));
+}
+
+export async function search(req: Request, res: Response) {
+  const { q, limit } = req.query as unknown as { q: string; limit: number };
+  const data = await svc.globalSearch(q, limit);
+  return res.json(ok('Search results', data));
 }
 
 export async function deactivate(req: Request, res: Response) {

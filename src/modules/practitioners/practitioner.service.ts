@@ -221,13 +221,30 @@ export async function listConsultedPatients(userId: Types.ObjectId) {
   return merged;
 }
 
-export async function listAllPractitionersAdmin(page: number, limit: number) {
-  const filter = { role: 'PRACTITIONER' };
+export async function listAllPractitionersAdmin(
+  page: number,
+  limit: number,
+  opts?: { search?: string; status?: string; verificationStatus?: string },
+) {
+  const filter: Record<string, unknown> = { role: 'PRACTITIONER' };
+  if (opts?.status) filter.status = opts.status;
+  if (opts?.verificationStatus) filter.verificationStatus = opts.verificationStatus;
+  if (opts?.search?.trim()) {
+    filter.$or = [
+      { firstName: new RegExp(escapeRegex(opts.search.trim()), 'i') },
+      { lastName: new RegExp(escapeRegex(opts.search.trim()), 'i') },
+      { email: new RegExp(escapeRegex(opts.search.trim()), 'i') },
+      { phoneNumber: new RegExp(escapeRegex(opts.search.trim()), 'i') },
+      { licenseNumber: new RegExp(escapeRegex(opts.search.trim()), 'i') },
+    ];
+  }
   const total = await PractitionerModel.countDocuments(filter);
   const rows = await PractitionerModel.find(filter)
     .sort({ createdAt: -1 })
     .skip(skipForPage(page, limit))
     .limit(limit)
+    .populate('specialties', 'name slug')
+    .populate('verifiedBy', 'firstName lastName email')
     .lean();
   return { items: rows, meta: buildMeta(total, page, limit) };
 }
@@ -301,9 +318,50 @@ export async function suspendPractitioner(adminId: Types.ObjectId, practitionerI
 
 export async function getPractitionerAdmin(actorRole: string, id: string) {
   if (actorRole !== 'ADMIN') throw new ForbiddenError();
-  const p = await PractitionerModel.findById(id).populate('specialties', 'name slug').lean();
+  const p = await PractitionerModel.findById(id)
+    .populate('specialties', 'name slug')
+    .populate('verifiedBy', 'firstName lastName email')
+    .lean();
   if (!p) throw new NotFoundError('Practitioner not found');
-  return p;
+
+  const [appointments, appointmentStats, reviewsCount] = await Promise.all([
+    AppointmentModel.find({ practitioner: id })
+      .sort({ scheduledStart: -1 })
+      .limit(15)
+      .populate('patient', 'firstName lastName email phoneNumber')
+      .lean(),
+    AppointmentModel.aggregate<{ _id: string; count: number }>([
+      { $match: { practitioner: p._id } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+    ReviewModel.countDocuments({ practitioner: id }),
+  ]);
+
+  return {
+    practitioner: p,
+    appointments,
+    appointmentStats: Object.fromEntries(appointmentStats.map((r) => [r._id, r.count])),
+    reviewsCount,
+  };
+}
+
+export async function deletePractitionerAdmin(
+  actorId: Types.ObjectId,
+  practitionerId: string,
+  req: import('express').Request,
+) {
+  const p = await PractitionerModel.findById(practitionerId);
+  if (!p) throw new NotFoundError('Practitioner not found');
+  await p.deleteOne();
+  await auditLog({
+    actor: actorId,
+    actorRole: 'ADMIN',
+    action: 'PRACTITIONER_REMOVED',
+    targetType: 'User',
+    targetId: practitionerId,
+    req,
+  });
+  return { message: 'Practitioner removed' };
 }
 
 export async function createPractitionerByAdmin(

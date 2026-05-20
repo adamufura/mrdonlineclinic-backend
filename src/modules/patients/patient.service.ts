@@ -139,13 +139,20 @@ export async function listMyPrescriptions(userId: Types.ObjectId, page: number, 
   return { items: rows, meta: buildMeta(total, page, limit) };
 }
 
-export async function listAllPatientsAdmin(page: number, limit: number, search?: string) {
+export async function listAllPatientsAdmin(
+  page: number,
+  limit: number,
+  opts?: { search?: string; status?: string },
+) {
   const q: Record<string, unknown> = { role: 'PATIENT' };
-  if (search) {
+  if (opts?.status) q.status = opts.status;
+  if (opts?.search?.trim()) {
+    const rx = new RegExp(opts.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     q.$or = [
-      { firstName: new RegExp(search, 'i') },
-      { lastName: new RegExp(search, 'i') },
-      { email: new RegExp(search, 'i') },
+      { firstName: rx },
+      { lastName: rx },
+      { email: rx },
+      { phoneNumber: rx },
     ];
   }
   const total = await PatientModel.countDocuments(q);
@@ -161,7 +168,49 @@ export async function getPatientByIdAdmin(actorRole: string, patientId: string) 
   if (actorRole !== 'ADMIN') throw new ForbiddenError();
   const patient = await PatientModel.findById(patientId).lean();
   if (!patient) throw new NotFoundError('Patient not found');
-  return patient;
+
+  const [appointments, prescriptions, appointmentStats] = await Promise.all([
+    AppointmentModel.find({ patient: patientId })
+      .sort({ scheduledStart: -1 })
+      .limit(15)
+      .populate('practitioner', 'firstName lastName email specialties')
+      .lean(),
+    PrescriptionModel.find({ patient: patientId })
+      .sort({ issuedAt: -1 })
+      .limit(10)
+      .populate('practitioner', 'firstName lastName')
+      .lean(),
+    AppointmentModel.aggregate<{ _id: string; count: number }>([
+      { $match: { patient: patient._id } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  return {
+    patient,
+    appointments,
+    prescriptions,
+    appointmentStats: Object.fromEntries(appointmentStats.map((r) => [r._id, r.count])),
+  };
+}
+
+export async function deletePatientAdmin(
+  actorId: Types.ObjectId,
+  patientId: string,
+  req: import('express').Request,
+) {
+  const patient = await PatientModel.findById(patientId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  await patient.deleteOne();
+  await auditLog({
+    actor: actorId,
+    actorRole: 'ADMIN',
+    action: 'PATIENT_REMOVED',
+    targetType: 'User',
+    targetId: patientId,
+    req,
+  });
+  return { message: 'Patient removed' };
 }
 
 export async function createPatientByAdmin(

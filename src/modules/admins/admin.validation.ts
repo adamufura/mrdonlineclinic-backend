@@ -22,3 +22,22 @@ export const changeAdminRoleSchema = z.object({
 export const auditLogQuerySchema = paginationQuerySchema.extend({
   action: z.string().optional(),
 });
+
+export const listAdminsQuerySchema = paginationQuerySchema.extend({
+  search: z.string().max(200).optional(),
+  status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']).optional(),
+  adminRole: z.string().optional(),
+});
+
+export const updateAdminSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  middleName: z.string().max(100).optional(),
+  phoneNumber: z.string().min(5).max(30).optional(),
+  status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']).optional(),
+});
+
+export const globalSearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().int().min(1).max(30).default(12),
+});

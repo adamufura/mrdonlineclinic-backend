@@ -128,8 +128,14 @@ export async function myAppointments(req: Request, res: Response) {
 
 export async function adminList(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const { page, limit } = req.query as unknown as { page: number; limit: number };
-  const result = await svc.listAllPractitionersAdmin(page, limit);
+  const { page, limit, search, status, verificationStatus } = req.query as unknown as {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+    verificationStatus?: string;
+  };
+  const result = await svc.listAllPractitionersAdmin(page, limit, { search, status, verificationStatus });
   return res.json(ok('Practitioners', result.items, result.meta));
 }
 
@@ -179,5 +185,11 @@ export async function adminUploadCredentials(req: Request, res: Response) {
 export async function adminResetPassword(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
   const data = await svc.resetPractitionerPassword(req.user.id, req.params.id, req);
+  return res.json(ok(data.message, data));
+}
+
+export async function adminRemove(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.deletePractitionerAdmin(req.user.id, req.params.id, req);
   return res.json(ok(data.message, data));
 }

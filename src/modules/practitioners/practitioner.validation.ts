@@ -128,6 +128,12 @@ export const createPractitionerAdminSchema = z.object({
   autoVerify: z.boolean().optional(),
 });
 
+export const listPractitionersAdminQuerySchema = paginationQuerySchema.extend({
+  search: z.string().max(200).optional(),
+  status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']).optional(),
+  verificationStatus: z.enum(['UNVERIFIED', 'PENDING_REVIEW', 'VERIFIED', 'REJECTED']).optional(),
+});
+
 export const updatePractitionerAdminSchema = z.object({
   firstName: z.string().min(1).max(100).optional(),
   middleName: z.string().max(100).optional(),

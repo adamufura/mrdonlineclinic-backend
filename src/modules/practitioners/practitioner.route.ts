@@ -3,10 +3,10 @@ import { asyncHandler } from '../../middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
 import { requirePermission } from '../../middlewares/requirePermission';
 import { requireRole } from '../../middlewares/requireRole';
+import { requireSuperAdmin } from '../../middlewares/requireSuperAdmin';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
 import { uploadSingleFile, uploadSingleImage } from '../../middlewares/upload';
 import * as ctrl from './practitioner.controller';
-import { paginationQuerySchema } from '../../shared/pagination';
 import { listAppointmentsQuerySchema } from '../appointments/appointment.validation';
 import {
   blockRangeSchema,
@@ -18,6 +18,7 @@ import {
   practitionerIdParamSchema,
   publicSlotsQuerySchema,
   createPractitionerAdminSchema,
+  listPractitionersAdminQuerySchema,
   rejectPractitionerSchema,
   slotIdParamSchema,
   updatePractitionerAdminSchema,
@@ -57,7 +58,7 @@ router.get('/:id', validateParams(practitionerIdParamSchema), asyncHandler(ctrl.
 
 const adminRouter = Router();
 adminRouter.use(authenticate, requireRole('ADMIN'));
-adminRouter.get('/', requirePermission('practitioners:read'), validateQuery(paginationQuerySchema), asyncHandler(ctrl.adminList));
+adminRouter.get('/', requirePermission('practitioners:read'), validateQuery(listPractitionersAdminQuerySchema), asyncHandler(ctrl.adminList));
 adminRouter.post('/', requirePermission('practitioners:onboard'), validateBody(createPractitionerAdminSchema), asyncHandler(ctrl.adminCreate));
 adminRouter.get('/:id', requirePermission('practitioners:read'), validateParams(practitionerIdParamSchema), asyncHandler(ctrl.adminGet));
 adminRouter.patch(
@@ -101,6 +102,12 @@ adminRouter.post(
   requirePermission('practitioners:write'),
   validateParams(practitionerIdParamSchema),
   asyncHandler(ctrl.adminSuspend),
+);
+adminRouter.delete(
+  '/:id',
+  requireSuperAdmin,
+  validateParams(practitionerIdParamSchema),
+  asyncHandler(ctrl.adminRemove),
 );
 
 export const practitionerRouter = router;

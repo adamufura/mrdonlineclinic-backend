@@ -68,8 +68,13 @@ export async function myPrescriptions(req: Request, res: Response) {
 
 export async function adminList(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const { page, limit, search } = req.query as unknown as { page: number; limit: number; search?: string };
-  const result = await svc.listAllPatientsAdmin(page, limit, search);
+  const { page, limit, search, status } = req.query as unknown as {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+  };
+  const result = await svc.listAllPatientsAdmin(page, limit, { search, status });
   return res.json(ok('Patients', result.items, result.meta));
 }
 
@@ -89,4 +94,10 @@ export async function adminPatch(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
   const data = await svc.updatePatientByAdmin(req.params.id, req.body);
   return res.json(ok('Patient updated', data));
+}
+
+export async function adminRemove(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.deletePatientAdmin(req.user.id, req.params.id, req);
+  return res.json(ok(data.message, data));
 }

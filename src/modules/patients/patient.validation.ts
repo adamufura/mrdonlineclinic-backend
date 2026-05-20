@@ -80,7 +80,18 @@ export const adminPatientIdParamSchema = z.object({
 });
 
 export const listPatientsAdminQuerySchema = paginationQuerySchema.extend({
-  search: z.string().optional(),
+  search: z.string().max(200).optional(),
+  status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']).optional(),
+});
+
+export const updatePatientAdminSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  middleName: z.string().max(100).optional(),
+  phoneNumber: z.string().min(5).max(30).optional(),
+  dateOfBirth: z.coerce.date().optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_SAY']).optional(),
+  status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']).optional(),
 });
 
 export const createPatientAdminSchema = z.object({

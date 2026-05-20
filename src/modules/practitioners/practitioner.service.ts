@@ -4,7 +4,9 @@ import type { Types } from 'mongoose';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import {
+  deleteFileById,
   practitionerCredentialsFolder,
+  practitionerSignatureFolder,
   uploadBuffer,
   uploadProfilePhoto,
 } from '../../services/imagekit.service';
@@ -79,6 +81,23 @@ export async function uploadPhoto(userId: Types.ObjectId, file: Express.Multer.F
   p.set('profilePhotoFileId', uploaded.fileId);
   await p.save();
   return { profilePhotoUrl: uploaded.url };
+}
+
+export async function uploadSignature(userId: Types.ObjectId, file: Express.Multer.File) {
+  const p = await PractitionerModel.findById(userId).select('+signatureFileId');
+  if (!p) throw new NotFoundError('Practitioner not found');
+  await deleteFileById(p.signatureFileId);
+  const uploaded = await uploadBuffer({
+    buffer: file.buffer,
+    fileName: file.originalname || 'signature.png',
+    folder: practitionerSignatureFolder(String(userId)),
+    mimeType: file.mimetype,
+    useUniqueFileName: true,
+  });
+  p.signatureUrl = uploaded.url;
+  p.set('signatureFileId', uploaded.fileId);
+  await p.save();
+  return { signatureUrl: uploaded.url };
 }
 
 export async function listDirectory(query: {

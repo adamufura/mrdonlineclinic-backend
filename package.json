@@ -12,6 +12,7 @@
     "seed": "tsx src/scripts/run-seed.ts",
     "seed:specialties": "tsx src/scripts/seed-specialties.ts",
     "smoke": "tsx src/scripts/smoke-test.ts",
+    "prescription:mock": "tsx src/scripts/generate-mock-prescription-pdf.ts",
     "test": "jest --runInBand",
     "test:watch": "jest --watch"
   },

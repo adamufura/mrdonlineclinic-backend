@@ -56,6 +56,13 @@ export async function postPhoto(req: Request, res: Response) {
   return res.json(ok('Photo uploaded', data));
 }
 
+export async function postSignature(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  if (!req.file) throw new ValidationError('No file uploaded');
+  const data = await svc.uploadSignature(req.user.id, req.file);
+  return res.json(ok('Signature uploaded', data));
+}
+
 export async function myPatients(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
   const data = await svc.listConsultedPatients(req.user.id);

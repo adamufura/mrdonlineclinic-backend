@@ -34,6 +34,9 @@ me.post('/credentials', (req, res, next) => {
 me.post('/photo', (req, res, next) => {
   uploadSingleImage(req, res, (err) => (err ? next(err) : next()));
 }, asyncHandler(ctrl.postPhoto));
+me.post('/signature', (req, res, next) => {
+  uploadSingleImage(req, res, (err) => (err ? next(err) : next()));
+}, asyncHandler(ctrl.postSignature));
 me.get('/patients', asyncHandler(ctrl.myPatients));
 me.get('/slots', validateQuery(listSlotsQuerySchema), asyncHandler(ctrl.mySlots));
 me.post('/slots', validateBody(createSlotSchema), asyncHandler(ctrl.createSlot));

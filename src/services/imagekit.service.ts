@@ -34,6 +34,11 @@ export function practitionerCredentialsFolder(userId: string): string {
   return `/${IMAGEKIT_ROOT.practitioner}/${userId}/credentials`;
 }
 
+/** e.g. /mrd_practitioner/{userId}/signature */
+export function practitionerSignatureFolder(userId: string): string {
+  return `/${IMAGEKIT_ROOT.practitioner}/${userId}/signature`;
+}
+
 /** e.g. /mrd_prescriptions/{prescriptionId} */
 export function prescriptionFolder(prescriptionId: string): string {
   return `/${IMAGEKIT_ROOT.prescriptions}/${prescriptionId}`;

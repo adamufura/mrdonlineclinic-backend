@@ -4,11 +4,10 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '.
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { domainEvents } from '../../events/domain.events';
 import { prescriptionFolder, uploadBuffer } from '../../services/imagekit.service';
-import { buildPrescriptionPdf } from '../../services/pdf/prescription-pdf';
+import { buildPrescriptionPdfForIssue } from './prescription-pdf-data';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { createNotification } from '../notifications/notification.service';
 import { refId } from '../appointments/appointment.service';
-import { UserModel } from '../users/user.model';
 import { CounterModel } from './counter.model';
 import { PrescriptionModel } from './prescription.model';
 
@@ -22,10 +21,6 @@ async function nextPrescriptionNumber(session: mongoose.ClientSession | null): P
   );
   const seq = counter?.seq ?? 1;
   return `MRD-RX-${year}-${String(seq).padStart(6, '0')}`;
-}
-
-function userDisplayName(u: { firstName?: string; lastName?: string }) {
-  return `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
 }
 
 export async function issuePrescription(
@@ -88,18 +83,15 @@ export async function issuePrescription(
     await AppointmentModel.updateOne({ _id: appointment._id }, { $set: { prescription: rx._id } }, { session });
     await session.commitTransaction();
 
-    const patient = await UserModel.findById(refId(appointment.patient)).lean();
-    const practitioner = await UserModel.findById(practitionerId).lean();
-    if (!patient || !practitioner) throw new NotFoundError('User not found');
-
-    const pdfBuf = await buildPrescriptionPdf({
+    const pdfBuf = await buildPrescriptionPdfForIssue({
+      appointmentId: appointment._id,
+      patientId: refId(appointment.patient),
+      practitionerId,
       prescriptionNumber,
-      patientName: userDisplayName(patient as { firstName?: string; lastName?: string }),
-      practitionerName: userDisplayName(practitioner as { firstName?: string; lastName?: string }),
+      issuedAt,
       diagnosis: body.diagnosis,
       medications: body.medications,
       additionalNotes: body.additionalNotes,
-      issuedAt,
     });
     const uploaded = await uploadBuffer({
       buffer: pdfBuf,

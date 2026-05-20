@@ -81,6 +81,9 @@ const practitionerSchema = new Schema({
   bio: { type: String },
   profilePhotoUrl: { type: String },
   profilePhotoFileId: { type: String, select: false },
+  /** PNG/JPG signature — embedded on prescription PDFs. */
+  signatureUrl: { type: String },
+  signatureFileId: { type: String, select: false },
   consultationLanguages: [{ type: String }],
   verificationStatus: {
     type: String,

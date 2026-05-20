@@ -28,6 +28,7 @@ npm run dev
 | `npm run build`| Compile to `dist/`       |
 | `npm start`    | Run compiled server      |
 | `npm test`     | Jest tests               |
+| `npm run prescription:mock` | Sample prescription PDF → `output/mock-prescription.pdf` |
 | `npm run lint` | ESLint on `src/`         |
 
 ## Architecture

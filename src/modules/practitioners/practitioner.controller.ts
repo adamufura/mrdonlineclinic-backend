@@ -156,3 +156,28 @@ export async function adminSuspend(req: Request, res: Response) {
   const data = await svc.suspendPractitioner(req.user.id, req.params.id, req);
   return res.json(ok('Practitioner suspended', data));
 }
+
+export async function adminCreate(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.createPractitionerByAdmin(req.user.id, req.body, req);
+  return res.status(201).json(ok(data.message, data));
+}
+
+export async function adminPatch(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updatePractitionerByAdmin(req.params.id, req.body);
+  return res.json(ok('Practitioner updated', data));
+}
+
+export async function adminUploadCredentials(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  if (!req.file) throw new ValidationError('No file uploaded');
+  const data = await svc.uploadCredentialsForPractitioner(req.user.id, req.params.id, req.file, req);
+  return res.json(ok('Credentials uploaded', data));
+}
+
+export async function adminResetPassword(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.resetPractitionerPassword(req.user.id, req.params.id, req);
+  return res.json(ok(data.message, data));
+}

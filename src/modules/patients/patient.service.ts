@@ -1,5 +1,8 @@
 import type { Types } from 'mongoose';
-import { ForbiddenError, NotFoundError } from '../../shared/errors';
+import { DEFAULT_STAFF_PASSWORD } from '../../config/admin-rbac';
+import { hashPassword } from '../../services/password.service';
+import { auditLog } from '../audit/audit.service';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { uploadProfilePhoto } from '../../services/imagekit.service';
 import { AppointmentModel } from '../appointments/appointment.model';
@@ -159,4 +162,70 @@ export async function getPatientByIdAdmin(actorRole: string, patientId: string) 
   const patient = await PatientModel.findById(patientId).lean();
   if (!patient) throw new NotFoundError('Patient not found');
   return patient;
+}
+
+export async function createPatientByAdmin(
+  adminId: Types.ObjectId,
+  body: {
+    firstName: string;
+    lastName: string;
+    middleName?: string;
+    email: string;
+    phoneNumber: string;
+    dateOfBirth?: Date;
+    gender?: string;
+  },
+  req: import('express').Request,
+) {
+  const email = body.email.toLowerCase();
+  const exists = await PatientModel.exists({ $or: [{ email }, { phoneNumber: body.phoneNumber }] });
+  if (exists) throw new ConflictError('Email or phone number already registered');
+
+  const passwordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+  const patient = await PatientModel.create({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    middleName: body.middleName,
+    email,
+    phoneNumber: body.phoneNumber,
+    passwordHash,
+    dateOfBirth: body.dateOfBirth,
+    gender: body.gender,
+    status: 'ACTIVE',
+    isEmailVerified: true,
+  });
+
+  await auditLog({
+    actor: adminId,
+    actorRole: 'ADMIN',
+    action: 'PATIENT_ONBOARDED',
+    targetType: 'User',
+    targetId: String(patient._id),
+    metadata: { email },
+    req,
+  });
+
+  return {
+    patient: patient.toObject(),
+    defaultPassword: DEFAULT_STAFF_PASSWORD,
+    message: `Patient onboarded. Default password: ${DEFAULT_STAFF_PASSWORD}`,
+  };
+}
+
+export async function updatePatientByAdmin(patientId: string, body: Record<string, unknown>) {
+  const patient = await PatientModel.findById(patientId);
+  if (!patient) throw new NotFoundError('Patient not found');
+  if (body.firstName !== undefined) patient.firstName = body.firstName as string;
+  if (body.middleName !== undefined) patient.middleName = body.middleName as string;
+  if (body.lastName !== undefined) patient.lastName = body.lastName as string;
+  if (body.phoneNumber !== undefined) patient.phoneNumber = body.phoneNumber as string;
+  if (body.dateOfBirth !== undefined) patient.dateOfBirth = body.dateOfBirth as Date;
+  if (body.gender !== undefined) {
+    patient.gender = body.gender as 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_SAY';
+  }
+  if (body.status !== undefined) {
+    patient.status = body.status as 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
+  }
+  await patient.save();
+  return patient.toObject();
 }

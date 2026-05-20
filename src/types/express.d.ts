@@ -2,7 +2,9 @@ import type { Types } from 'mongoose';
 import type { Server as SocketServer } from 'socket.io';
 
 export type AuthRole = 'PATIENT' | 'PRACTITIONER' | 'ADMIN';
-export type AdminRole = 'SUPER_ADMIN' | 'ADMIN';
+import type { AdminRole as MinistryAdminRole } from '../config/admin-rbac';
+
+export type AdminRole = MinistryAdminRole;
 
 declare module 'express-serve-static-core' {
   interface Locals {

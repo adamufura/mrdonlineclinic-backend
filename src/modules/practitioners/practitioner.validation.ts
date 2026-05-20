@@ -112,3 +112,30 @@ export const verifyPractitionerSchema = z.object({
 export const rejectPractitionerSchema = z.object({
   verificationNotes: z.string().min(1).max(2000),
 });
+
+const mongoObjectIdString = z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
+
+export const createPractitionerAdminSchema = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  middleName: z.string().max(100).optional(),
+  email: z.string().email().max(255),
+  phoneNumber: z.string().min(5).max(30),
+  specialties: z.array(mongoObjectIdString).min(1).max(5),
+  licenseNumber: z.string().min(2).max(80).optional(),
+  bio: z.string().max(5000).optional(),
+  yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
+  autoVerify: z.boolean().optional(),
+});
+
+export const updatePractitionerAdminSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  middleName: z.string().max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phoneNumber: z.string().min(5).max(30).optional(),
+  licenseNumber: z.string().min(2).max(80).optional(),
+  bio: z.string().max(5000).optional(),
+  yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
+  specialties: z.array(mongoObjectIdString).optional(),
+  isAvailableForBooking: z.boolean().optional(),
+});

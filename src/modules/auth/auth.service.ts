@@ -9,6 +9,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../ser
 import { hashPassword, verifyPassword } from '../../services/password.service';
 import { hashToken } from '../../services/token-hash.service';
 import { AuthError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
+import { getPermissionsForRole } from '../../config/admin-rbac';
 import type { AdminRole, AuthRole } from '../../types/express';
 import { SpecialtyModel } from '../specialties/specialty.model';
 import { AdminModel, PatientModel, PractitionerModel, UserModel } from '../users/user.model';
@@ -26,10 +27,12 @@ function adminRoleFromDoc(doc: { role?: string; adminRole?: AdminRole }): AdminR
 }
 
 function toSafeUser(doc: Record<string, unknown>): SafeUser {
+  const adminRole = doc.adminRole as AdminRole | undefined;
   return {
     id: String(doc._id),
     role: doc.role as AuthRole,
-    adminRole: doc.adminRole as AdminRole | undefined,
+    adminRole,
+    permissions: doc.role === 'ADMIN' ? getPermissionsForRole(adminRole) : undefined,
     firstName: doc.firstName as string,
     middleName: doc.middleName as string | undefined,
     lastName: doc.lastName as string,

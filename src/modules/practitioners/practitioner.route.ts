@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
+import { requirePermission } from '../../middlewares/requirePermission';
 import { requireRole } from '../../middlewares/requireRole';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
 import { uploadSingleFile, uploadSingleImage } from '../../middlewares/upload';
@@ -16,8 +17,10 @@ import {
   materializeQuerySchema,
   practitionerIdParamSchema,
   publicSlotsQuerySchema,
+  createPractitionerAdminSchema,
   rejectPractitionerSchema,
   slotIdParamSchema,
+  updatePractitionerAdminSchema,
   updatePractitionerProfileSchema,
   verifyPractitionerSchema,
 } from './practitioner.validation';
@@ -54,21 +57,51 @@ router.get('/:id', validateParams(practitionerIdParamSchema), asyncHandler(ctrl.
 
 const adminRouter = Router();
 adminRouter.use(authenticate, requireRole('ADMIN'));
-adminRouter.get('/', validateQuery(paginationQuerySchema), asyncHandler(ctrl.adminList));
-adminRouter.get('/:id', validateParams(practitionerIdParamSchema), asyncHandler(ctrl.adminGet));
+adminRouter.get('/', requirePermission('practitioners:read'), validateQuery(paginationQuerySchema), asyncHandler(ctrl.adminList));
+adminRouter.post('/', requirePermission('practitioners:onboard'), validateBody(createPractitionerAdminSchema), asyncHandler(ctrl.adminCreate));
+adminRouter.get('/:id', requirePermission('practitioners:read'), validateParams(practitionerIdParamSchema), asyncHandler(ctrl.adminGet));
+adminRouter.patch(
+  '/:id',
+  requirePermission('practitioners:write'),
+  validateParams(practitionerIdParamSchema),
+  validateBody(updatePractitionerAdminSchema),
+  asyncHandler(ctrl.adminPatch),
+);
+adminRouter.post(
+  '/:id/credentials',
+  requirePermission('practitioners:write'),
+  validateParams(practitionerIdParamSchema),
+  (req, res, next) => {
+    uploadSingleFile(req, res, (err) => (err ? next(err) : next()));
+  },
+  asyncHandler(ctrl.adminUploadCredentials),
+);
+adminRouter.post(
+  '/:id/reset-password',
+  requirePermission('practitioners:write'),
+  validateParams(practitionerIdParamSchema),
+  asyncHandler(ctrl.adminResetPassword),
+);
 adminRouter.post(
   '/:id/verify',
+  requirePermission('practitioners:verify'),
   validateParams(practitionerIdParamSchema),
   validateBody(verifyPractitionerSchema),
   asyncHandler(ctrl.adminVerify),
 );
 adminRouter.post(
   '/:id/reject',
+  requirePermission('practitioners:verify'),
   validateParams(practitionerIdParamSchema),
   validateBody(rejectPractitionerSchema),
   asyncHandler(ctrl.adminReject),
 );
-adminRouter.post('/:id/suspend', validateParams(practitionerIdParamSchema), asyncHandler(ctrl.adminSuspend));
+adminRouter.post(
+  '/:id/suspend',
+  requirePermission('practitioners:write'),
+  validateParams(practitionerIdParamSchema),
+  asyncHandler(ctrl.adminSuspend),
+);
 
 export const practitionerRouter = router;
 export const practitionerAdminRouter = adminRouter;

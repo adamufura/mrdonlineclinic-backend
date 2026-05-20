@@ -78,3 +78,15 @@ export async function adminGetById(req: Request, res: Response) {
   const data = await svc.getPatientByIdAdmin(req.user.role, req.params.id);
   return res.json(ok('Patient', data));
 }
+
+export async function adminCreate(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.createPatientByAdmin(req.user.id, req.body, req);
+  return res.status(201).json(ok(data.message, data));
+}
+
+export async function adminPatch(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.updatePatientByAdmin(req.params.id, req.body);
+  return res.json(ok('Patient updated', data));
+}

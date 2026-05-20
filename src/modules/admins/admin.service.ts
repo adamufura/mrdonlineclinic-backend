@@ -1,65 +1,77 @@
-import crypto from 'crypto';
-import dayjs from 'dayjs';
-import { v4 as uuidv4 } from 'uuid';
 import type { Types } from 'mongoose';
-import { getEnv } from '../../config/env';
-import { getEmailAdapter } from '../../services/email';
+import {
+  canAssignAdminRole,
+  DEFAULT_STAFF_PASSWORD,
+  getPermissionsForRole,
+  normalizeAdminRole,
+  type AdminRole,
+} from '../../config/admin-rbac';
 import { hashPassword } from '../../services/password.service';
-import { hashToken } from '../../services/token-hash.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
-import { domainEvents } from '../../events/domain.events';
 import { AppointmentModel } from '../appointments/appointment.model';
 import { AuditLogModel } from '../audit/audit-log.model';
 import { UserModel, AdminModel } from '../users/user.model';
 import { auditLog } from '../audit/audit.service';
 
-function randomToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
+export async function createAdmin(
+  actorId: Types.ObjectId,
+  actorRole: string | undefined,
+  body: {
+    firstName: string;
+    lastName: string;
+    middleName?: string;
+    email: string;
+    phoneNumber: string;
+    adminRole: AdminRole;
+  },
+  req: import('express').Request,
+) {
+  if (!canAssignAdminRole(actorRole, body.adminRole)) {
+    throw new ForbiddenError('You cannot assign this role');
+  }
 
-export async function inviteAdmin(actorId: Types.ObjectId, email: string, req: import('express').Request) {
-  const normalized = email.toLowerCase();
+  const normalized = body.email.toLowerCase();
   const exists = await UserModel.exists({ email: normalized });
   if (exists) throw new ConflictError('User with this email already exists');
 
-  const raw = randomToken();
-  const tempPassword = await hashPassword(uuidv4());
-  await AdminModel.create({
-    firstName: 'Invited',
-    lastName: 'Admin',
+  const phoneExists = await UserModel.exists({ phoneNumber: body.phoneNumber });
+  if (phoneExists) throw new ConflictError('Phone number already in use');
+
+  const passwordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+  const permissions = getPermissionsForRole(body.adminRole);
+
+  const admin = await AdminModel.create({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    middleName: body.middleName,
     email: normalized,
-    phoneNumber: `inv-${uuidv4().slice(0, 12)}`,
-    passwordHash: tempPassword,
-    status: 'PENDING_VERIFICATION',
-    adminRole: 'ADMIN',
+    phoneNumber: body.phoneNumber,
+    passwordHash,
+    status: 'ACTIVE',
+    adminRole: body.adminRole,
+    permissions,
+    isEmailVerified: true,
     invitedBy: actorId,
-    invitationToken: hashToken(raw),
-    invitationExpires: dayjs().add(7, 'day').toDate(),
-    isEmailVerified: false,
   });
-
-  const env = getEnv();
-  const link = `${env.CLIENT_URL}/admin/accept-invite?token=${raw}`;
-  await getEmailAdapter().sendMail({
-    to: normalized,
-    subject: 'MRD Online Clinic — Admin invitation',
-    html: `<p>You were invited as an admin. <a href="${link}">Accept invitation</a></p>`,
-    text: `Accept invitation: ${link}`,
-  });
-
-  domainEvents.emitTyped('AdminInvited', { email: normalized, token: raw });
 
   await auditLog({
     actor: actorId,
-    actorRole: 'SUPER_ADMIN',
-    action: 'ADMIN_INVITED',
+    actorRole: normalizeAdminRole(actorRole) ?? 'ADMIN',
+    action: 'ADMIN_CREATED',
     targetType: 'User',
-    targetId: normalized,
+    targetId: String(admin._id),
+    metadata: { adminRole: body.adminRole, email: normalized },
     req,
   });
 
-  return { message: 'Invitation sent' };
+  const obj = admin.toObject();
+  delete (obj as { passwordHash?: string }).passwordHash;
+  return {
+    admin: obj,
+    defaultPassword: DEFAULT_STAFF_PASSWORD,
+    message: `Staff account created. Default password: ${DEFAULT_STAFF_PASSWORD}`,
+  };
 }
 
 export async function listAdmins(page: number, limit: number) {
@@ -74,16 +86,19 @@ export async function listAdmins(page: number, limit: number) {
   return { items: rows, meta: buildMeta(total, page, limit) };
 }
 
-export async function deactivateAdmin(actorId: Types.ObjectId, targetId: string, req: import('express').Request) {
+export async function deactivateAdmin(actorId: Types.ObjectId, actorRole: string | undefined, targetId: string, req: import('express').Request) {
   if (String(actorId) === targetId) throw new ForbiddenError('Cannot deactivate yourself');
   const admin = await AdminModel.findById(targetId);
   if (!admin) throw new NotFoundError('Admin not found');
   if (admin.adminRole === 'SUPER_ADMIN') throw new ForbiddenError('Cannot deactivate super admin this way');
+  if (!canAssignAdminRole(actorRole, normalizeAdminRole(admin.adminRole) ?? 'OPERATIONS')) {
+    throw new ForbiddenError('You cannot deactivate this account');
+  }
   admin.status = 'DEACTIVATED';
   await admin.save();
   await auditLog({
     actor: actorId,
-    actorRole: 'SUPER_ADMIN',
+    actorRole: normalizeAdminRole(actorRole) ?? 'ADMIN',
     action: 'ADMIN_DEACTIVATED',
     targetType: 'User',
     targetId,
@@ -111,13 +126,21 @@ export async function removeAdmin(actorId: Types.ObjectId, targetId: string, req
 
 export async function changeAdminRole(
   actorId: Types.ObjectId,
+  actorRole: string | undefined,
   targetId: string,
-  adminRole: 'SUPER_ADMIN' | 'ADMIN',
+  adminRole: AdminRole,
   req: import('express').Request,
 ) {
+  if (!canAssignAdminRole(actorRole, adminRole)) {
+    throw new ForbiddenError('You cannot assign this role');
+  }
   const admin = await AdminModel.findById(targetId);
   if (!admin) throw new NotFoundError('Admin not found');
+  if (admin.adminRole === 'SUPER_ADMIN' && adminRole !== 'SUPER_ADMIN') {
+    throw new ForbiddenError('Cannot change super admin role');
+  }
   admin.adminRole = adminRole;
+  admin.set('permissions', getPermissionsForRole(adminRole));
   await admin.save();
   await auditLog({
     actor: actorId,
@@ -129,6 +152,26 @@ export async function changeAdminRole(
     req,
   });
   return admin.toObject();
+}
+
+export async function resetAdminPassword(actorId: Types.ObjectId, targetId: string, req: import('express').Request) {
+  const admin = await AdminModel.findById(targetId).select('+passwordHash');
+  if (!admin) throw new NotFoundError('Admin not found');
+  if (admin.adminRole === 'SUPER_ADMIN' && String(actorId) !== targetId) {
+    throw new ForbiddenError('Cannot reset super admin password');
+  }
+  admin.passwordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+  admin.set('refreshTokens', []);
+  await admin.save();
+  await auditLog({
+    actor: actorId,
+    actorRole: 'SUPER_ADMIN',
+    action: 'ADMIN_PASSWORD_RESET',
+    targetType: 'User',
+    targetId,
+    req,
+  });
+  return { message: `Password reset to default: ${DEFAULT_STAFF_PASSWORD}`, defaultPassword: DEFAULT_STAFF_PASSWORD };
 }
 
 export async function platformStats() {
@@ -149,7 +192,7 @@ export async function listAuditLogs(page: number, limit: number, action?: string
     .sort({ createdAt: -1 })
     .skip(skipForPage(page, limit))
     .limit(limit)
-    .populate('actor', 'firstName lastName email role')
+    .populate('actor', 'firstName lastName email role adminRole')
     .lean();
   return { items: rows, meta: buildMeta(total, page, limit) };
 }

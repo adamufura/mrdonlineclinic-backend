@@ -1,7 +1,10 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import type { Types } from 'mongoose';
-import { ForbiddenError, NotFoundError } from '../../shared/errors';
+import { DEFAULT_STAFF_PASSWORD } from '../../config/admin-rbac';
+import { hashPassword } from '../../services/password.service';
+import { SpecialtyModel } from '../specialties/specialty.model';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import {
   deleteFileById,
@@ -298,7 +301,135 @@ export async function suspendPractitioner(adminId: Types.ObjectId, practitionerI
 
 export async function getPractitionerAdmin(actorRole: string, id: string) {
   if (actorRole !== 'ADMIN') throw new ForbiddenError();
-  const p = await PractitionerModel.findById(id).lean();
+  const p = await PractitionerModel.findById(id).populate('specialties', 'name slug').lean();
   if (!p) throw new NotFoundError('Practitioner not found');
   return p;
+}
+
+export async function createPractitionerByAdmin(
+  adminId: Types.ObjectId,
+  body: {
+    firstName: string;
+    lastName: string;
+    middleName?: string;
+    email: string;
+    phoneNumber: string;
+    specialties: string[];
+    licenseNumber?: string;
+    bio?: string;
+    yearsOfExperience?: number;
+    autoVerify?: boolean;
+  },
+  req: import('express').Request,
+) {
+  const email = body.email.toLowerCase();
+  const exists = await PractitionerModel.exists({ $or: [{ email }, { phoneNumber: body.phoneNumber }] });
+  if (exists) throw new ConflictError('Email or phone number already registered');
+
+  const specialtyIds = [...new Set(body.specialties)];
+  const activeCount = await SpecialtyModel.countDocuments({ _id: { $in: specialtyIds }, isActive: true });
+  if (activeCount !== specialtyIds.length) {
+    throw new ValidationError('One or more specialties are invalid or inactive');
+  }
+
+  const passwordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+  const autoVerify = body.autoVerify !== false;
+
+  const p = await PractitionerModel.create({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    middleName: body.middleName,
+    email,
+    phoneNumber: body.phoneNumber,
+    passwordHash,
+    specialties: specialtyIds,
+    licenseNumber: body.licenseNumber,
+    bio: body.bio,
+    yearsOfExperience: body.yearsOfExperience,
+    status: 'ACTIVE',
+    isEmailVerified: true,
+    verificationStatus: autoVerify ? 'VERIFIED' : 'PENDING_REVIEW',
+    isAvailableForBooking: autoVerify,
+    verifiedAt: autoVerify ? new Date() : undefined,
+    verifiedBy: autoVerify ? adminId : undefined,
+    onboardedBy: adminId,
+    onboardedAt: new Date(),
+  });
+
+  await auditLog({
+    actor: adminId,
+    actorRole: 'ADMIN',
+    action: 'PRACTITIONER_ONBOARDED',
+    targetType: 'User',
+    targetId: String(p._id),
+    metadata: { email, autoVerify },
+    req,
+  });
+
+  const obj = p.toObject();
+  return {
+    practitioner: obj,
+    defaultPassword: DEFAULT_STAFF_PASSWORD,
+    message: `Practitioner onboarded. Default password: ${DEFAULT_STAFF_PASSWORD}`,
+  };
+}
+
+export async function updatePractitionerByAdmin(practitionerId: string, body: Record<string, unknown>) {
+  const p = await PractitionerModel.findById(practitionerId);
+  if (!p) throw new NotFoundError('Practitioner not found');
+  if (body.firstName !== undefined) p.firstName = body.firstName as string;
+  if (body.middleName !== undefined) p.middleName = body.middleName as string;
+  if (body.lastName !== undefined) p.lastName = body.lastName as string;
+  if (body.phoneNumber !== undefined) p.phoneNumber = body.phoneNumber as string;
+  if (body.licenseNumber !== undefined) p.licenseNumber = body.licenseNumber as string;
+  if (body.bio !== undefined) p.bio = body.bio as string;
+  if (body.yearsOfExperience !== undefined) p.yearsOfExperience = body.yearsOfExperience as number;
+  if (body.specialties !== undefined) p.set('specialties', body.specialties);
+  if (body.isAvailableForBooking !== undefined) p.isAvailableForBooking = Boolean(body.isAvailableForBooking);
+  await p.save();
+  return p.toObject();
+}
+
+export async function uploadCredentialsForPractitioner(
+  adminId: Types.ObjectId,
+  practitionerId: string,
+  file: Express.Multer.File,
+  req: import('express').Request,
+) {
+  const p = await PractitionerModel.findById(practitionerId);
+  if (!p) throw new NotFoundError('Practitioner not found');
+  const uploaded = await uploadBuffer({
+    buffer: file.buffer,
+    fileName: file.originalname || 'license.pdf',
+    folder: practitionerCredentialsFolder(String(practitionerId)),
+  });
+  p.licenseDocumentUrl = uploaded.url;
+  if (p.verificationStatus === 'UNVERIFIED') p.verificationStatus = 'PENDING_REVIEW';
+  await p.save();
+  await auditLog({
+    actor: adminId,
+    actorRole: 'ADMIN',
+    action: 'PRACTITIONER_CREDENTIALS_UPLOADED',
+    targetType: 'User',
+    targetId: practitionerId,
+    req,
+  });
+  return { licenseDocumentUrl: uploaded.url, verificationStatus: p.verificationStatus };
+}
+
+export async function resetPractitionerPassword(adminId: Types.ObjectId, practitionerId: string, req: import('express').Request) {
+  const p = await PractitionerModel.findById(practitionerId).select('+passwordHash');
+  if (!p) throw new NotFoundError('Practitioner not found');
+  p.passwordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+  p.set('refreshTokens', []);
+  await p.save();
+  await auditLog({
+    actor: adminId,
+    actorRole: 'ADMIN',
+    action: 'PRACTITIONER_PASSWORD_RESET',
+    targetType: 'User',
+    targetId: practitionerId,
+    req,
+  });
+  return { message: `Password reset to default: ${DEFAULT_STAFF_PASSWORD}`, defaultPassword: DEFAULT_STAFF_PASSWORD };
 }

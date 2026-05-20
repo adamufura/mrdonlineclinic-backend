@@ -3,9 +3,9 @@ import { AuthError } from '../../shared/errors';
 import { ok } from '../../shared/envelope';
 import * as svc from './admin.service';
 
-export async function invite(req: Request, res: Response) {
+export async function create(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const data = await svc.inviteAdmin(req.user.id, req.body.email, req);
+  const data = await svc.createAdmin(req.user.id, req.user.adminRole, req.body, req);
   return res.status(201).json(ok(data.message, data));
 }
 
@@ -17,7 +17,7 @@ export async function list(req: Request, res: Response) {
 
 export async function deactivate(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const data = await svc.deactivateAdmin(req.user.id, req.params.id, req);
+  const data = await svc.deactivateAdmin(req.user.id, req.user.adminRole, req.params.id, req);
   return res.json(ok(data.message, data));
 }
 
@@ -29,8 +29,14 @@ export async function remove(req: Request, res: Response) {
 
 export async function changeRole(req: Request, res: Response) {
   if (!req.user) throw new AuthError();
-  const data = await svc.changeAdminRole(req.user.id, req.params.id, req.body.adminRole, req);
+  const data = await svc.changeAdminRole(req.user.id, req.user.adminRole, req.params.id, req.body.adminRole, req);
   return res.json(ok('Role updated', data));
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const data = await svc.resetAdminPassword(req.user.id, req.params.id, req);
+  return res.json(ok(data.message, data));
 }
 
 export async function stats(_req: Request, res: Response) {

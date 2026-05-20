@@ -1,19 +1,21 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
+import { requirePermission } from '../../middlewares/requirePermission';
 import { requireRole } from '../../middlewares/requireRole';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validate';
 import { uploadSingleImage } from '../../middlewares/upload';
 import * as ctrl from './patient.controller';
 import {
   adminPatientIdParamSchema,
+  createPatientAdminSchema,
   listPatientAppointmentsQuerySchema,
   listPatientsAdminQuerySchema,
+  updatePatientProfileSchema,
   updatePatientAddressSchema,
   updatePatientEmergencySchema,
   updatePatientHealthRecordSchema,
   updatePatientMedicalSchema,
-  updatePatientProfileSchema,
 } from './patient.validation';
 import { paginationQuerySchema } from '../../shared/pagination';
 
@@ -38,8 +40,16 @@ router.get('/me/prescriptions', validateQuery(paginationQuerySchema), asyncHandl
 
 const adminRouter = Router();
 adminRouter.use(authenticate, requireRole('ADMIN'));
-adminRouter.get('/', validateQuery(listPatientsAdminQuerySchema), asyncHandler(ctrl.adminList));
-adminRouter.get('/:id', validateParams(adminPatientIdParamSchema), asyncHandler(ctrl.adminGetById));
+adminRouter.get('/', requirePermission('patients:read'), validateQuery(listPatientsAdminQuerySchema), asyncHandler(ctrl.adminList));
+adminRouter.post('/', requirePermission('patients:write'), validateBody(createPatientAdminSchema), asyncHandler(ctrl.adminCreate));
+adminRouter.get('/:id', requirePermission('patients:read'), validateParams(adminPatientIdParamSchema), asyncHandler(ctrl.adminGetById));
+adminRouter.patch(
+  '/:id',
+  requirePermission('patients:write'),
+  validateParams(adminPatientIdParamSchema),
+  validateBody(updatePatientProfileSchema),
+  asyncHandler(ctrl.adminPatch),
+);
 
 export const patientRouter = router;
 export const patientAdminRouter = adminRouter;

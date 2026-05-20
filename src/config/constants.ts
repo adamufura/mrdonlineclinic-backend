@@ -3,7 +3,26 @@ export const API_PREFIX = '/api/v1';
 export const USER_ROLES = ['PATIENT', 'PRACTITIONER', 'ADMIN'] as const;
 export const USER_STATUSES = ['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED'] as const;
 
-export const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN'] as const;
+export const ADMIN_ROLES = [
+  'SUPER_ADMIN',
+  'DEPUTY_DIRECTOR',
+  'OPERATIONS',
+  'MINISTRY_OFFICE',
+  'ONBOARDING',
+  'AUDITOR',
+  /** @deprecated Legacy value — normalized to OPERATIONS in RBAC; not assignable on create. */
+  'ADMIN',
+] as const;
+
+/** Roles that may be assigned when creating ministry staff (excludes legacy ADMIN). */
+export const ASSIGNABLE_ADMIN_ROLES = [
+  'SUPER_ADMIN',
+  'DEPUTY_DIRECTOR',
+  'OPERATIONS',
+  'MINISTRY_OFFICE',
+  'ONBOARDING',
+  'AUDITOR',
+] as const;
 
 export const PRACTITIONER_VERIFICATION = ['UNVERIFIED', 'PENDING_REVIEW', 'VERIFIED', 'REJECTED'] as const;
 

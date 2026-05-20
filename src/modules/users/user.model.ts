@@ -98,6 +98,8 @@ const practitionerSchema = new Schema({
   totalReviews: { type: Number, default: 0 },
   isAvailableForBooking: { type: Boolean, default: false, index: true },
   profileCompletedAt: { type: Date },
+  onboardedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  onboardedAt: { type: Date },
   /** Shown in public directory; used for location search (city/state/country). */
   practiceLocation: {
     city: { type: String, trim: true },

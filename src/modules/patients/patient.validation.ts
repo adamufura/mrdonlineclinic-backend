@@ -82,3 +82,13 @@ export const adminPatientIdParamSchema = z.object({
 export const listPatientsAdminQuerySchema = paginationQuerySchema.extend({
   search: z.string().optional(),
 });
+
+export const createPatientAdminSchema = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  middleName: z.string().max(100).optional(),
+  email: z.string().email().max(255),
+  phoneNumber: z.string().min(5).max(30),
+  dateOfBirth: z.coerce.date().optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_SAY']).optional(),
+});

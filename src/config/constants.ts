@@ -38,6 +38,8 @@ export const APPOINTMENT_STATUSES = [
   'REJECTED',
 ] as const;
 
+export const APP_LANGUAGES = ['en', 'ha'] as const;
+
 export const MESSAGE_TYPES = ['TEXT', 'IMAGE', 'FILE', 'VOICE', 'SYSTEM', 'CALL'] as const;
 
 export const CALL_OUTCOMES = ['completed', 'rejected', 'missed', 'cancelled'] as const;

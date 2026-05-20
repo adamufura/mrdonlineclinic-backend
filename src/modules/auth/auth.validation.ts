@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APP_LANGUAGES } from '../../config/constants';
 
 const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{}|;:'",.<>?/~`]+$/;
 
@@ -65,4 +66,8 @@ export const adminLoginSchema = loginSchema;
 export const acceptAdminInviteSchema = z.object({
   token: z.string().min(1),
   password: passwordSchema,
+});
+
+export const updatePreferredLanguageSchema = z.object({
+  preferredLanguage: z.enum(APP_LANGUAGES),
 });

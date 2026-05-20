@@ -14,6 +14,7 @@ import type { AdminRole, AuthRole } from '../../types/express';
 import { SpecialtyModel } from '../specialties/specialty.model';
 import { AdminModel, PatientModel, PractitionerModel, UserModel } from '../users/user.model';
 import type { z } from 'zod';
+import type { AppLanguage } from '../translation/translation.types';
 import type { SafeUser, TokenPair } from './auth.types';
 import { registerPractitionerSchema } from './auth.validation';
 
@@ -40,6 +41,7 @@ function toSafeUser(doc: Record<string, unknown>): SafeUser {
     phoneNumber: doc.phoneNumber as string,
     status: doc.status as string,
     isEmailVerified: Boolean(doc.isEmailVerified),
+    preferredLanguage: (doc.preferredLanguage === 'ha' ? 'ha' : 'en') as AppLanguage,
     lastLoginAt: doc.lastLoginAt as Date | undefined,
     profilePhotoUrl:
       typeof doc.profilePhotoUrl === 'string' && doc.profilePhotoUrl.trim()
@@ -301,6 +303,16 @@ export async function changePassword(
 
 export async function getMe(userId: Types.ObjectId) {
   const user = await UserModel.findById(userId).lean();
+  if (!user) throw new NotFoundError('User not found');
+  return toSafeUser(user as Record<string, unknown>);
+}
+
+export async function updatePreferredLanguage(userId: Types.ObjectId, preferredLanguage: AppLanguage) {
+  const user = await UserModel.findByIdAndUpdate(
+    userId,
+    { $set: { preferredLanguage } },
+    { new: true },
+  ).lean();
   if (!user) throw new NotFoundError('User not found');
   return toSafeUser(user as Record<string, unknown>);
 }

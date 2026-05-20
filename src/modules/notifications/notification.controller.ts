@@ -1,4 +1,6 @@
 import type { Request, Response } from 'express';
+import { enrichNotificationDoc } from '../../services/translation.service';
+import { getUserPreferredLanguage } from '../../shared/language';
 import { AuthError, NotFoundError } from '../../shared/errors';
 import { ok } from '../../shared/envelope';
 import { NotificationModel } from './notification.model';
@@ -15,7 +17,11 @@ export async function list(req: Request, res: Response) {
     .skip(skipForPage(page, limit))
     .limit(limit)
     .lean();
-  return res.json(ok('Notifications', rows, buildMeta(total, page, limit)));
+  const viewerLanguage = await getUserPreferredLanguage(req.user.id);
+  const items = await Promise.all(
+    rows.map((row) => enrichNotificationDoc(row as Record<string, unknown>, viewerLanguage)),
+  );
+  return res.json(ok('Notifications', items, buildMeta(total, page, limit)));
 }
 
 export async function markRead(req: Request, res: Response) {

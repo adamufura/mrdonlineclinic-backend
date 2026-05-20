@@ -11,6 +11,7 @@ import { prescriptionRouter } from '../modules/prescriptions/prescription.route'
 import { practitionerAdminRouter, practitionerRouter } from '../modules/practitioners/practitioner.route';
 import { reviewRouter } from '../modules/reviews/review.route';
 import { specialtyAdminRouter, specialtyPublicRouter } from '../modules/specialties/specialty.route';
+import { translationRouter } from '../modules/translation/translation.route';
 
 export function registerRoutes(app: Express, apiPrefix: string) {
   app.use(`${apiPrefix}/auth`, authRouter);
@@ -28,4 +29,5 @@ export function registerRoutes(app: Express, apiPrefix: string) {
   app.use(`${apiPrefix}/reviews`, reviewRouter);
   app.use(`${apiPrefix}/notifications`, notificationRouter);
   app.use(`${apiPrefix}/admin`, adminRouter);
+  app.use(`${apiPrefix}/translate`, translationRouter);
 }

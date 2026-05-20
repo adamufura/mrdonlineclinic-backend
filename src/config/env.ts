@@ -30,6 +30,11 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   IMAGEKIT_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   IMAGEKIT_URL_ENDPOINT: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  TRANSLATION_API_URL: z
+    .string()
+    .url()
+    .default('https://yare-text-extract-api-291835437259.europe-west1.run.app/api/v1/translate'),
+  TRANSLATION_API_ENABLED: z.coerce.boolean().default(true),
 });
 
 export type Env = z.infer<typeof envSchema>;

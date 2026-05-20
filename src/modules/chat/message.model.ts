@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { MESSAGE_TYPES } from '../../config/constants';
+import { APP_LANGUAGES, MESSAGE_TYPES } from '../../config/constants';
 
 const readBySchema = new Schema(
   {
@@ -34,6 +34,8 @@ const messageSchema = new Schema(
     chatRoom: { type: Schema.Types.ObjectId, ref: 'ChatRoom', required: true, index: true },
     sender: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     content: { type: String },
+    contentLanguage: { type: String, enum: APP_LANGUAGES, default: 'en' },
+    translations: { type: Map, of: String },
     attachments: [attachmentSchema],
     messageType: { type: String, enum: MESSAGE_TYPES, default: 'TEXT' },
     readBy: [readBySchema],

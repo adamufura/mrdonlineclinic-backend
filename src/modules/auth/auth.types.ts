@@ -1,4 +1,5 @@
 import type { AdminPermission } from '../../config/admin-rbac';
+import type { AppLanguage } from '../translation/translation.types';
 import type { AuthRole, AdminRole } from '../../types/express';
 
 export type SafeUser = {
@@ -13,6 +14,7 @@ export type SafeUser = {
   phoneNumber: string;
   status: string;
   isEmailVerified: boolean;
+  preferredLanguage: AppLanguage;
   lastLoginAt?: Date;
   profilePhotoUrl?: string;
 };

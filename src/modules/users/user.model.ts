@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { ADMIN_ROLES, PRACTITIONER_VERIFICATION, USER_STATUSES } from '../../config/constants';
+import { ADMIN_ROLES, APP_LANGUAGES, PRACTITIONER_VERIFICATION, USER_STATUSES } from '../../config/constants';
 
 const refreshTokenSchema = new Schema(
   {
@@ -29,6 +29,7 @@ const baseUserSchema = new Schema(
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
     lastLoginAt: { type: Date },
+    preferredLanguage: { type: String, enum: APP_LANGUAGES, default: 'en' },
     refreshTokens: { type: [refreshTokenSchema], default: [] },
   },
   { discriminatorKey: 'role', timestamps: true, collection: 'users' },

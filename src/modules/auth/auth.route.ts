@@ -17,6 +17,7 @@ import {
   registerPatientSchema,
   registerPractitionerSchema,
   resetPasswordSchema,
+  updatePreferredLanguageSchema,
   verifyEmailSchema,
 } from './auth.validation';
 
@@ -51,5 +52,11 @@ router.post(
   asyncHandler(ctrl.changePassword),
 );
 router.get('/me', authenticate, asyncHandler(ctrl.me));
+router.patch(
+  '/me/language',
+  authenticate,
+  validateBody(updatePreferredLanguageSchema),
+  asyncHandler(ctrl.updateLanguage),
+);
 
 export const authRouter = router;

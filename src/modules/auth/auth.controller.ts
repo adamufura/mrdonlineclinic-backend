@@ -75,6 +75,15 @@ export async function me(req: Request, res: Response) {
   return res.json(ok('Profile', user));
 }
 
+export async function updateLanguage(req: Request, res: Response) {
+  if (!req.user) throw new AuthError();
+  const user = await authService.updatePreferredLanguage(
+    req.user.id,
+    req.body.preferredLanguage,
+  );
+  return res.json(ok('Language updated', user));
+}
+
 export async function acceptAdminInvite(req: Request, res: Response) {
   const result = await authService.acceptAdminInvite(req.body);
   return res.json(ok(result.message, result));

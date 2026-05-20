@@ -1,5 +1,8 @@
 import type { Types } from 'mongoose';
 import mongoose from 'mongoose';
+import type { AppLanguage } from '../translation/translation.types';
+import { enrichMessageDoc, enrichMessagesForViewer } from '../../services/translation.service';
+import { getUserPreferredLanguage } from '../../shared/language';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildMeta, skipForPage } from '../../shared/pagination';
 import { ChatRoomModel } from './chat-room.model';
@@ -55,9 +58,25 @@ export type ChatRoomSummary = {
   unreadCount: number;
 };
 
+async function enrichLastMessagePreview(
+  lastMessage: Record<string, unknown> | null,
+  viewerLanguage: AppLanguage,
+): Promise<Record<string, unknown> | null> {
+  if (!lastMessage) return null;
+  const enriched = await enrichMessageDoc(lastMessage, viewerLanguage);
+  return {
+    ...lastMessage,
+    content: enriched.displayContent ?? lastMessage.content,
+    displayContent: enriched.displayContent,
+    originalContent: enriched.originalContent,
+    isTranslated: enriched.isTranslated,
+  };
+}
+
 async function buildRoomSummaries(
   rooms: Record<string, unknown>[],
   userId: Types.ObjectId,
+  viewerLanguage: AppLanguage,
 ): Promise<ChatRoomSummary[]> {
   if (rooms.length === 0) return [];
   const roomIds = rooms.map((r) => r._id as Types.ObjectId);
@@ -123,20 +142,31 @@ async function buildRoomSummaries(
     unreadByRoom.set(String(row._id), row.c as number);
   }
 
+  const enrichedLastMessages = await Promise.all(
+    rooms.map(async (room) => {
+      const rid = String(room._id);
+      const lastRaw = lastByRoom.get(rid) ?? null;
+      if (!lastRaw) return { rid, lastMessage: null };
+      const base = {
+        _id: lastRaw._id,
+        content: lastRaw.content,
+        messageType: lastRaw.messageType,
+        contentLanguage: lastRaw.contentLanguage,
+        translations: lastRaw.translations,
+        createdAt: lastRaw.createdAt,
+        sender: isRecord(lastRaw.sender) ? normalizeUser(lastRaw.sender as Record<string, unknown>) : lastRaw.sender,
+      } as Record<string, unknown>;
+      const lastMessage = await enrichLastMessagePreview(base, viewerLanguage);
+      return { rid, lastMessage };
+    }),
+  );
+  const lastMessageByRoom = new Map(enrichedLastMessages.map((e) => [e.rid, e.lastMessage]));
+
   return rooms.map((room) => {
     const rid = String(room._id);
     const appt = isRecord(room.appointment) ? (room.appointment as Record<string, unknown>) : null;
     const other = normalizeUser(pickOtherParticipant(appt, userId));
-    const lastRaw = lastByRoom.get(rid) ?? null;
-    const lastMessage = lastRaw
-      ? ({
-          _id: lastRaw._id,
-          content: lastRaw.content,
-          messageType: lastRaw.messageType,
-          createdAt: lastRaw.createdAt,
-          sender: isRecord(lastRaw.sender) ? normalizeUser(lastRaw.sender as Record<string, unknown>) : lastRaw.sender,
-        } as Record<string, unknown>)
-      : null;
+    const lastMessage = lastMessageByRoom.get(rid) ?? null;
 
     return {
       _id: rid,
@@ -160,6 +190,7 @@ async function assertParticipant(roomId: string, userId: Types.ObjectId) {
 
 export async function listMessages(roomId: string, userId: Types.ObjectId, page: number, limit: number, before?: Date) {
   await assertParticipant(roomId, userId);
+  const viewerLanguage = await getUserPreferredLanguage(userId);
   const q: Record<string, unknown> = { chatRoom: roomId };
   if (before) q.createdAt = { $lt: before };
   const total = await MessageModel.countDocuments(q);
@@ -169,7 +200,8 @@ export async function listMessages(roomId: string, userId: Types.ObjectId, page:
     .limit(limit)
     .populate('sender', 'firstName lastName role profilePhotoUrl')
     .lean();
-  return { items: rows, meta: buildMeta(total, page, limit) };
+  const items = await enrichMessagesForViewer(rows as Record<string, unknown>[], viewerLanguage);
+  return { items, meta: buildMeta(total, page, limit) };
 }
 
 export async function markRead(roomId: string, messageId: string, userId: Types.ObjectId) {
@@ -195,10 +227,12 @@ export async function createHttpMessage(
   if (!body.content && (!body.attachments || body.attachments.length === 0)) {
     throw new ValidationError('Message must have content or attachments');
   }
+  const contentLanguage = await getUserPreferredLanguage(userId);
   const msg = await MessageModel.create({
     chatRoom: roomId,
     sender: userId,
     content: body.content,
+    contentLanguage,
     attachments: body.attachments ?? [],
     messageType: body.messageType ?? 'TEXT',
   });
@@ -207,7 +241,8 @@ export async function createHttpMessage(
     .populate({ path: 'sender', select: 'firstName lastName role profilePhotoUrl' })
     .lean();
   if (!populated) throw new NotFoundError('Message not found');
-  return populated as Record<string, unknown>;
+  const viewerLanguage = await getUserPreferredLanguage(userId);
+  return enrichMessageDoc(populated as Record<string, unknown>, viewerLanguage);
 }
 
 export async function listRoomsForUser(userId: Types.ObjectId, page: number, limit: number) {
@@ -226,7 +261,8 @@ export async function listRoomsForUser(userId: Types.ObjectId, page: number, lim
       ],
     })
     .lean();
-  const items = await buildRoomSummaries(rows as Record<string, unknown>[], userId);
+  const viewerLanguage = await getUserPreferredLanguage(userId);
+  const items = await buildRoomSummaries(rows as Record<string, unknown>[], userId, viewerLanguage);
   return { items, meta: buildMeta(total, page, limit) };
 }
 
@@ -243,7 +279,8 @@ export async function getRoomForUser(roomId: string, userId: Types.ObjectId): Pr
     })
     .lean();
   if (!row) throw new NotFoundError('Chat room not found');
-  const [summary] = await buildRoomSummaries([row as Record<string, unknown>], userId);
+  const viewerLanguage = await getUserPreferredLanguage(userId);
+  const [summary] = await buildRoomSummaries([row as Record<string, unknown>], userId, viewerLanguage);
   return summary;
 }
 
@@ -270,10 +307,12 @@ export async function createSocketMessage(
 ) {
   const room = await assertParticipant(roomId, userId);
   if (room.isLocked) throw new ValidationError('Chat is locked');
+  const contentLanguage = await getUserPreferredLanguage(userId);
   const msg = await MessageModel.create({
     chatRoom: roomId,
     sender: userId,
     content: content || undefined,
+    contentLanguage,
     messageType,
     attachments: attachments ?? [],
   });

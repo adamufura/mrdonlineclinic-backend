@@ -256,7 +256,10 @@ export async function getAppointmentForUser(appointmentId: string, userId: Types
   const pId = refId(appt.patient);
   const prId = refId(appt.practitioner);
   if (!pId.equals(userId) && !prId.equals(userId)) throw new ForbiddenError();
-  return appt.toObject();
+  const { enrichAppointmentDoc } = await import('../../services/translation.service');
+  const { getUserPreferredLanguage } = await import('../../shared/language');
+  const viewerLanguage = await getUserPreferredLanguage(userId);
+  return enrichAppointmentDoc(appt.toObject() as Record<string, unknown>, viewerLanguage);
 }
 
 export async function listForPatient(userId: Types.ObjectId, page: number, limit: number, filters: { status?: string; from?: Date; to?: Date }) {

@@ -4,6 +4,7 @@ import { verifyAccessToken } from '../services/jwt.service';
 import { logger } from '../config/logger';
 import * as chatService from '../modules/chat/chat.service';
 import { MessageModel } from '../modules/chat/message.model';
+import { userRoom } from './user-room';
 
 const lastSend = new Map<string, number>();
 
@@ -28,6 +29,7 @@ export function registerChatNamespace(io: Server) {
 
   nsp.on('connection', (socket) => {
     const userId = new Types.ObjectId(String(socket.data.userId));
+    void socket.join(userRoom(String(userId)));
 
     socket.on('joinRoom', async (roomId: string, cb?: (err?: Error) => void) => {
       try {

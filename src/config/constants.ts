@@ -19,7 +19,9 @@ export const APPOINTMENT_STATUSES = [
   'REJECTED',
 ] as const;
 
-export const MESSAGE_TYPES = ['TEXT', 'IMAGE', 'FILE', 'VOICE', 'SYSTEM'] as const;
+export const MESSAGE_TYPES = ['TEXT', 'IMAGE', 'FILE', 'VOICE', 'SYSTEM', 'CALL'] as const;
+
+export const CALL_OUTCOMES = ['completed', 'rejected', 'missed', 'cancelled'] as const;
 
 export const NOTIFICATION_TYPES = [
   'APPOINTMENT_BOOKED',

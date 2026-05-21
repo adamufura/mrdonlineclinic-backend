@@ -113,7 +113,7 @@ export const rejectPractitionerSchema = z.object({
   verificationNotes: z.string().min(1).max(2000),
 });
 
-const mongoObjectIdString = z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
+const mongoObjectIdString = z.string().regex(/^[a-fA-F0-9]{24}$/, 'Must be a valid specialty ID');
 
 export const createPractitionerAdminSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -121,7 +121,10 @@ export const createPractitionerAdminSchema = z.object({
   middleName: z.string().max(100).optional(),
   email: z.string().email().max(255),
   phoneNumber: z.string().min(5).max(30),
-  specialties: z.array(mongoObjectIdString).min(1).max(5),
+  specialties: z
+    .array(mongoObjectIdString, { required_error: 'Select a specialty', invalid_type_error: 'Select a specialty' })
+    .min(1, 'Select at least one specialty')
+    .max(5),
   licenseNumber: z.string().min(2).max(80).optional(),
   bio: z.string().max(5000).optional(),
   yearsOfExperience: z.coerce.number().min(0).max(80).optional(),
